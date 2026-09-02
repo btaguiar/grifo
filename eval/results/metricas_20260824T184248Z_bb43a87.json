@@ -1,0 +1,27 @@
+{
+  "timestamp": "20260824T184248Z",
+  "commit": "bb43a87",
+  "curso": "corpus real (privado)",
+  "metricas": {
+    "total_itens": 64,
+    "recusa_correta": 1.0,
+    "alucinacao": 0.045454545454545456,
+    "latency_p95_ms": 19901.6,
+    "taxa_resposta": 0.6875,
+    "citacao_em_respondidas": 1.0,
+    "fonte_correta_em_respondidas": 0.8182,
+    "tokens_input_total": 85500,
+    "tokens_output_total": 11429,
+    "ragas": null
+  },
+  "config": {
+    "llm_model": "qwen2.5-7b-instruct-1m",
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "score_threshold": 0.35,
+    "final_k": 5,
+    "retrieve_k": 20,
+    "rerank_enabled": true,
+    "bm25_rescue_min_idf": 6.0,
+    "golden_set": "golden_set.local.jsonl"
+  }
+}

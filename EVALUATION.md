@@ -1,0 +1,409 @@
+# Avaliação — Grifo
+
+> **Status: primeira linha de base medida em 2026-08-24**, sobre o corpus real (24 sessões, 6.551 chunks), com `qwen2.5-7b-instruct-1m` local via LM Studio e embeddings locais — pipeline 100% offline. Nenhuma linha com valor inventado: vazio é honesto, chutado não é.
+
+Requisitos e metas: [SPEC.md](SPEC.md), seções 8 e 6 (DC-3).
+
+---
+
+## 1. Por que este capítulo existe
+
+A maioria dos projetos RAG de portfolio não tem avaliação — mostram uma demo bonita e nenhum número. É exatamente onde este projeto ganha. Um recruiter técnico procura evidência de rigor, e ela precisa aparecer antes de o scroll morrer: por isso as métricas vêm antes da arquitetura também no README.
+
+---
+
+## 2. Metodologia
+
+**Golden set.** 50+ perguntas em `eval/golden_set.jsonl`, no formato DC-3, montadas a partir das dúvidas que se repetiam de verdade na operação do curso. Composição alvo:
+
+| Categoria | Fatia | O que testa |
+|---|---|---|
+| Conceitual, dentro do escopo | 60% | Retrieval semântico e fidelidade da resposta |
+| Factual / sigla / nome de ferramenta | 20% | O componente BM25 do retriever híbrido |
+| Fora do escopo (`should_answer: false`) | 20% | A regra de recusa (ADR 002) |
+
+**Execução.** `python eval/run_eval.py` — roda o pipeline completo sobre o golden set, calcula as métricas RAGAS e as duas métricas próprias, e grava um JSON com timestamp e hash do commit em `eval/results/`.
+
+**Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`. Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
+
+**Cadência.** Roda no CI a cada push. Regressão em qualquer métrica abaixo da meta reprova o build.
+
+---
+
+## 3. Resultados
+
+### 3.1 Linha de base — 2026-08-24, corpus real
+
+64 itens de `eval/golden_set.local.jsonl` (53 dentro do escopo, 11 fora), coleção
+`grifo_curso_real`, `SCORE_THRESHOLD=0.35`, `FINAL_K=5`, rerank ligado.
+Resultado bruto: `eval/results/eval_20260824T184248Z_bb43a87.json`.
+
+| Métrica | Meta v1 | Baseline | Status |
+|---|---|---|---|
+| Context Precision | > 0.75 | não medida | RAGAS não instalado |
+| Context Recall | > 0.70 | não medida | RAGAS não instalado |
+| Faithfulness | > 0.90 | não medida | RAGAS não instalado |
+| Answer Relevance | > 0.80 | não medida | RAGAS não instalado |
+| **Taxa de recusa correta** | > 0.95 | **1.00** (11/11) | atinge |
+| **Taxa de alucinação** | < 2% | **0.00** (0/44) | atinge — ver 5.4 |
+| Latência p95 | < 3s | **19,9s** | **falha por 6x** |
+
+Complementares, fora da tabela da SPEC mas necessárias para ler as de cima:
+
+| Métrica | Medido | Leitura |
+|---|---|---|
+| Taxa de resposta | 0.69 (44/64) | 20 recusas: 11 corretas + **9 falsas** (ver 5.3) |
+| Fonte correta nas respondidas | 0.82 (36/44) | o `expected_source` apareceu nas fontes |
+| Citação nas respondidas | 1.00 | **artificial** — 0.80 espontâneo (ver 5.5) |
+| Tokens totais | 85.500 entrada / 11.429 saída | 1.374 / 220 por resposta |
+
+**A recusa em 100% é o resultado central, e o mecanismo importa.** Com threshold em
+0.35 o gate de retrieval sozinho barra apenas 1 das 11 perguntas fora de escopo
+(medido na seção 4.1). Quem recusou as outras 10 foi o **LLM**, pelo caminho em que a
+recusa do modelo vira `found: false`. São os dois gates em série do ADR 002 — nenhum
+dos dois entrega isso sozinho.
+
+As duas em negrito não vêm do RAGAS. São métricas próprias, definidas abaixo, e são as que importam num contexto educacional.
+
+### 3.2 Definição das métricas próprias
+
+**Taxa de recusa correta** = recusas corretas ÷ total de itens com `should_answer: false`.
+Uma recusa é correta quando a resposta é exatamente a string de recusa e `found` é `false`. Recusar uma pergunta que o material respondia conta como falso negativo e entra na análise de erro, não nesta métrica.
+
+**Taxa de alucinação** = respostas com ao menos uma afirmação não sustentada pelos chunks recuperados ÷ total de respostas com `found: true`.
+Medida por LLM-as-judge sobre a resposta e os chunks recuperados (o **texto**, não a
+etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl`, 6 casos
+rotulados à mão; rode `python eval/calibrar_juiz.py` para reproduzir. Ver 5.4 — o juiz
+ainda produz falso positivo em dado real, então o número exige inspeção manual.
+
+---
+
+## 4. Calibração de parâmetros
+
+O ponto de partida está em SPEC seção 7. Estes números **não** são para aceitar — são para medir e ajustar. Cada tabela abaixo se preenche com uma varredura sobre o golden set.
+
+### 4.1 `SCORE_THRESHOLD`
+
+Trade-off central: threshold alto aumenta a taxa de recusa correta e derruba a cobertura; threshold baixo faz o inverso. O gráfico de precisão vs. threshold é a evidência mais forte do projeto.
+
+Reproduzir: `python eval/calibrar_retrieval.py --threshold`. Corpus real, 64 itens,
+`FINAL_K=5`, reranker ligado (o valor da época). Só retrieval, sem LLM.
+
+| Threshold | fonte@5 | Recusa correta (só retrieval) | Cobertura |
+|---|---|---|---|
+| 0.25 | 74% | 0% | 100% |
+| 0.30 | 74% | 0% | 100% |
+| 0.35 (partida) | 74% | 9% | 100% |
+| 0.40 | 75% | 18% | 100% |
+| **0.45 (calibrado)** | **75%** | **55%** | **100%** |
+| 0.50 | 72% | 73% | 98% |
+| 0.53 | 70% | 82% | 96% |
+| 0.55 | 66% | 82% | 94% |
+| 0.60 | 57% | 91% | 85% |
+
+**0.45 domina 0.35**: mesma cobertura, acerto de fonte igual ou melhor, e a recusa no
+gate de retrieval passa de 9% para 55%. Não é um trade-off — é ganho nos dois eixos, e
+o valor de partida simplesmente estava errado. Acima de 0.50 o recall começa a cair;
+em 0.60 já se perde 15% da cobertura para ganhar 9 pontos de recusa.
+
+`fonte@5` é o proxy de context precision enquanto o RAGAS não está instalado: mede se a
+aula esperada apareceu, não se o trecho é relevante. São coisas diferentes.
+
+A sondagem de 10 perguntas registrada abaixo apontava ~0.53. Com o golden set inteiro o
+ponto ótimo é mais baixo — mais uma razão para não calibrar em amostra pequena.
+
+#### Sondagem preliminar (2026-08-23) — corpus real
+
+**Não é a calibração.** São 10 perguntas ad hoc (5 dentro do escopo, 5 fora) contra o
+corpus real (`grifo_curso_real`, 6.551 chunks, embeddings
+`paraphrase-multilingual-MiniLM-L12-v2`). Serve para uma coisa só: mostrar que o valor
+de partida está errado por uma margem grande.
+
+| Grupo | Score máximo observado |
+|---|---|
+| Dentro do escopo (5 perguntas) | 0.565 – 0.767 |
+| **Fora do escopo (5 perguntas)** | **0.402 – 0.503** |
+
+Com `SCORE_THRESHOLD = 0.35`, **5 de 5 perguntas fora do escopo passam do gate.**
+"Qual a receita do bolo de cenoura?" recupera 11 chunks, o melhor deles em 0.503 —
+casando com a aula "Máquina de **Receita**". Homônimo, e o gate não vê diferença.
+
+A separação nesta amostra cai na faixa (0.503, 0.565); o ponto médio é ~0.53. **Não
+promova esse número a default** sem o golden set: a margem é de 0.06 em 10 perguntas,
+e uma pergunta legítima de baixa similaridade fecha a janela. O que a sondagem prova é
+que 0.35 não é defensável neste corpus, não que 0.53 seja o certo.
+
+Vale registrar que a recusa não depende só do threshold: o segundo gate é o próprio LLM
+(ADR 002), e a recusa dele agora vira `found: false` corretamente. Os dois em série é o
+que sustenta a meta de 0.95.
+
+### 4.2 `FINAL_K`
+
+Reproduzir: `python eval/calibrar_retrieval.py --k`.
+
+| FINAL_K | fonte@k | Tokens de contexto (média) | Cobertura |
+|---|---|---|---|
+| 3 | 62% | 644 | 100% |
+| 5 (partida) | 74% | 1.121 | 100% |
+| 8 | **81%** | 1.867 | 100% |
+
+Trade-off direto entre recall e latência, e é aqui que a decisão sobre o NFR-1 se paga.
+`FINAL_K=8` compra 7 pontos de acerto por 66% mais tokens de contexto — e tokens de
+entrada são tempo de geração, que já é 95% da latência. `FINAL_K=3` faria o inverso:
+economiza 43% dos tokens e custa 12 pontos.
+
+**Mantido em 5 por ora.** Subir para 8 só depois de resolver a latência; descer para 3
+é a alavanca a puxar se a decisão for perseguir os 3s a qualquer custo.
+
+### 4.3 Chunking
+
+| CHUNK_SIZE / OVERLAP | Context Recall | Observação |
+|---|---|---|
+| 600 / 100 | — | — |
+| 900 / 150 (partida) | — | — |
+| 1200 / 200 | — | — |
+
+Incluir no teste perguntas cuja resposta **cruza dois chunks** — é o caso que mais degrada o recall e o que o overlap existe para resolver.
+
+### 4.4 Contribuição de cada componente
+
+Ablação: quanto cada peça do retriever realmente entrega. Justifica manter ou cortar (SPEC seção 11).
+
+Reproduzir: `python eval/calibrar_retrieval.py --ablacao`. `SCORE_THRESHOLD=0.35`.
+
+| Configuração | fonte@5 | Delta | Cobertura |
+|---|---|---|---|
+| Só vetorial | 66% | baseline | 98% |
+| + BM25 (RRF) | 75% | **+9 pp** | 98% |
+| + resgate léxico | 77% | +2 pp | **100%** |
+| + reranker cross-encoder | 74% | **−3 pp** | 100% |
+
+Duas conclusões, e a segunda é o resultado mais acionável da calibração.
+
+**O BM25 se paga.** Sozinho ele vale 9 pontos, e o resgate léxico soma 2 e ainda leva a
+cobertura a 100% — nenhuma pergunta do escopo fica sem chunk. Isso responde à SPEC 11,
+que mandava cortar o BM25 primeiro sob pressão de prazo: seria o corte errado.
+
+**O reranker PIORA e ainda custa caro.** Tira 3 pontos de acerto de fonte e adiciona
+~613ms por pergunta. A causa provável é o modelo: `ms-marco-MiniLM-L-6-v2` é treinado
+em inglês, e reordenar português com ele é pior que a ordem que o RRF já tinha
+produzido. Desligado por padrão — não por prazo, por medição. Reativar exige antes
+trocar por um reranker multilíngue e refazer esta tabela.
+
+#### Configuração recomendada
+
+| Configuração | fonte@5 | Recusa | Cobertura |
+|---|---|---|---|
+| Anterior: thr=0.35, reranker ON | 74% | 9% | 100% |
+| thr=0.45, reranker ON | 75% | 55% | 100% |
+| thr=0.35, reranker OFF | 77% | 9% | 100% |
+| **thr=0.45, reranker OFF** | **79%** | **55%** | **100%** |
+| thr=0.50, reranker OFF | 74% | 73% | 98% |
+
+A recomendada é melhor que a anterior em todos os eixos medidos, e ainda 613ms mais
+rápida. Aplicada como default em `config.py` e `.env.example`.
+
+#### Resgate léxico — medido no corpus real (2026-08-23)
+
+64 itens do golden set do corpus real (53 dentro do escopo, 11 fora), `SCORE_THRESHOLD = 0.53`,
+só retrieval, sem LLM.
+
+| Configuração do resgate | fonte@5 | fonte@20 | Recusa correta |
+|---|---|---|---|
+| Desligado (comportamento anterior) | 68% | 77% | 82% |
+| Só IDF ≥ 6 | **75%** | **87%** | **27%** |
+| IDF ≥ 6 + ≥3 chunks + 70% concentração | 74% | 83% | 82% |
+
+O resgate só por IDF compra 7 pontos de recall e **destrói a recusa** (82% → 27%).
+A razão é conceitual: IDF mede raridade, não pertencimento ao domínio. Neste corpus
+`pulse` tem IDF 7,3 e `bolo` tem 7,1 — igualmente raros, e nenhum corte de IDF os separa.
+Também não separa por frequência: `pulse` aparece em 4 chunks, `bolo` em 5.
+
+O que separa é a **forma** da ocorrência. Um termo que uma aula ensina é recorrente e
+concentrado; um termo incidental se espalha ou aparece uma vez só:
+
+| Termo | Chunks | Aulas | Concentração | Resgatável |
+|---|---|---|---|---|
+| `pulse` | 4 | 1 | 100% | sim |
+| `apqc` | 4 | 1 | 100% | sim |
+| `empacotamento` | 18 | 3 | 89% | sim |
+| `bolo` | 5 | 4 | 40% | não |
+| `cachorro` | 4 | 3 | 50% | não |
+| `poema` | 1 | 1 | — | não (abaixo do piso) |
+
+Com os três critérios combinados o recall sobe 6 pontos **sem custo nenhum de recusa**.
+O resultado é insensível aos valores exatos — 70% e 80% de concentração, IDF 5 e 6 dão
+a mesma linha — o que sugere robustez em vez de ajuste fino. Ainda assim são 64 itens:
+reconfirmar quando o golden set for revisado.
+
+### 4.5 Latência do retrieval (medido, 2026-08-23)
+
+Corpus real, 6.551 chunks, antes de qualquer chamada de LLM. Orçamento NFR-1: 3s p95.
+
+| Etapa | `localhost` | `127.0.0.1` |
+|---|---|---|
+| `fetch_all` — 26 round-trips, build do BM25 | 53,6s | 0,76s |
+| Busca vetorial (média de 3) | 2,061s | **0,016s** |
+| Query híbrida completa, quente | ~2,07s | **~0,03s** |
+
+No Windows, `localhost` resolve `::1` antes de `127.0.0.1` e cada requisição ao Qdrant
+paga ~200ms. O cliente Python amplifica isso para ~2s por busca. Uma letra no
+`QDRANT_URL` devolveu 69x na query quente e tirou o retrieval do caminho crítico do
+NFR-1 — o orçamento de 3s fica inteiro para o LLM.
+
+**Resolvido (2026-09-02).** A primeira query do processo custava ~10s — carga do modelo
+de embedding mais o scroll completo do Qdrant (26 round-trips) para montar o índice
+BM25 — e quem pagava era o primeiro aluno depois de cada deploy. A API agora aquece as
+duas coisas no `lifespan`, antes de aceitar tráfego. O aquecimento usa o filtro
+`{"curso": ...}`, o mesmo que a chain consulta: o cache do BM25 é chaveado por filtro, e
+aquecer sem ele construiria um índice que nenhuma pergunta usa.
+
+**E o cache não invalidava após `/ingest`** — este era bug de correção, não de latência.
+O índice léxico é um snapshot do corpus tirado na primeira query. Sem descartá-lo, o
+material recém-ingerido ficava visível para a busca vetorial e invisível para o BM25: o
+resgate do ADR 001 — o nome exato citado uma vez no material — deixava de alcançar
+justamente o conteúdo mais novo. E calado, porque a API seguia respondendo, só que pior.
+É o mesmo padrão da regressão do `_point_id` (docstring do `vector_store`): o resgate
+parando sem ninguém notar. `pipeline.ingest` agora descarta o índice, e o endpoint o
+reconstrói em seguida para o próximo aluno também não pagar o rebuild.
+
+**Limite conhecido:** o cache vive no processo. Com `uvicorn --workers N` seriam N
+índices independentes, e um `/ingest` que chega num worker não invalida os outros. Hoje
+o compose roda single-worker, então a invalidação vale; escalar horizontalmente exige
+mover a invalidação para fora do processo.
+
+---
+
+## 5. Análise de erro
+
+Os casos concretos que falharam, com a causa raiz de cada um. As aulas do corpus real
+aparecem pela notação `M<módulo>/A<aula>`: o conteúdo do curso não é público, mas o
+diagnóstico não depende dele.
+
+### 5.1 Primeira passada de retrieval — corpus real (2026-08-23)
+
+64 itens do golden set do corpus real, avaliando só o retrieval (sem LLM). Dos 53 itens
+dentro do escopo, a fonte esperada apareceu no top-5 em **40 (75%)**, no top-20 em mais
+10, e ficou de fora em 3.
+
+Os 3 rótulos foram conferidos por grep no material: **estão corretos**. Não são erro do
+golden set, são falha do sistema — e as três têm a mesma causa raiz.
+
+| ID | Pergunta | Esperado | Retrieval trouxe |
+|---|---|---|---|
+| gs-051 | "O que é o Pulse?" | M1/A2 (o termo aparece 8x, só lá) | **nada** — 0 chunks |
+| gs-012 | "Quais são os três tipos de público?" | M1/A7 (título da aula) | M3/A2 |
+| gs-010 | "O que é empacotamento de conteúdo?" | M1/A6 (o termo aparece 33x lá) | M1/A1 |
+
+### 5.2 Causa raiz: o BM25 não resgata, só reordena
+
+Nos três casos o BM25 sozinho encontrou o chunk **certo**, com score alto, e o pipeline
+o descartou:
+
+| Pergunta | Melhor chunk do BM25 | Score BM25 | Achados só pelo BM25, descartados | `retrieve()` final |
+|---|---|---|---|---|
+| "O que é o Pulse?" | `M1/A2:chunk79` | 12,07 | 2 | **0 chunks** |
+| "três tipos de público" | `M1/A7:chunk0` | 9,93 | 5 | 20 chunks (sem o certo no top-5) |
+| "empacotamento" | `M1/A6:chunk259` | 11,36 | 5 | 20 chunks (sem o certo no top-5) |
+
+`hybrid.retrieve` intersecta os dois rankings: só entra no resultado o chunk que já veio
+no top-k **vetorial**. O BM25 promove a ordem, mas nunca resgata. Está documentado no
+módulo como escolha consciente da v1 ("chunks que só o BM25 encontra ficam de fora"),
+com a justificativa de que sem cosseno não existe gate honesto de recusa.
+
+O problema é que essa escolha anula a razão de existir do ADR 001, que diz textualmente:
+*"busca puramente semântica erra quando o aluno pergunta pelo nome exato de uma
+ferramenta citada uma vez. BM25 pega isso."* O caso "Pulse" é exatamente esse, e o
+sistema responde "não encontrei isso no material do curso" sobre conteúdo que existe.
+
+Pior que o falso negativo: é uma recusa **confiante e errada**, o oposto do que o ADR 002
+quer proteger.
+
+**Resolvido em 2026-08-23.** O candidato só-BM25 passou a entrar, admitido por evidência
+léxica em vez de cosseno — medida que mostrou 0,026 no caso "Pulse", ruído. Buscar o
+cosseno para usá-lo como gate não funcionaria: nenhum threshold admite 0,026.
+
+O critério de admissão está na seção 4.4. `gs-051` saiu de 0 chunks para a fonte correta
+na posição 1. `gs-012` e `gs-010` continuam fora do top-5 — os termos deles não são raros
+o bastante para disparar o resgate, e ficam como caso aberto de análise de erro.
+
+| ID do golden set | Falha | Causa provável | Ação |
+|---|---|---|---|
+| gs-051 | Recusa sobre conteúdo existente | Gate vetorial descarta o resgate do BM25 | ver 5.2 |
+| gs-012 | Fonte certa fora do top-5 | idem | ver 5.2 |
+| gs-010 | Fonte certa fora do top-5 | idem | ver 5.2 |
+
+### 5.3 As 9 falsas recusas (2026-08-24)
+
+`taxa_resposta = 0.69` esconde a conta: das 20 recusas, 11 são corretas e **9 são
+perguntas que o material responde** — 17% do escopo. É o custo do ADR 002 com número.
+
+| ID | Categoria | Pergunta | Fonte esperada |
+|---|---|---|---|
+| gs-003 | conceitual | O que são os arquétipos no método FLG? | M1/A2 |
+| gs-005 | conceitual | Como definir o inimigo comum da narrativa? | M1/A3 |
+| gs-010 | conceitual | O que é empacotamento de conteúdo? | M1/A6 |
+| gs-015 | conceitual | Por que o YouTube constrói mais autoridade? | M1/A9 |
+| gs-016 | conceitual | Como funciona cross mídia entre canais? | M1/A9 |
+| gs-046 | factual | O que é o método CF? | M3/A3 |
+| gs-049 | factual | O que é o Studio na configuração de agentes? | M6/A1 |
+| gs-052 | factual | O que significa tier na estratégia de retenção? | M4/A2 |
+| gs-053 | factual | O que é o ponteiro e como escolher qual mover? | M5/A1 |
+
+**4 das 9 são factuais por termo raro** — a classe que o resgate léxico deveria cobrir.
+`empacotamento` e `método CF` já eram conhecidos de 5.1; `Studio`, `tier` e `ponteiro`
+são novos. Sinal de que os limiares de 4.4 estão conservadores demais para termos que
+aparecem em poucas aulas.
+
+A métrica de recusa correta, sozinha, não vê nada disso. Ela mede só o denominador
+`should_answer: false`. Reportar 1.00 sem esta tabela ao lado seria enganoso.
+
+### 5.4 O juiz de alucinação errou nos dois casos que sinalizou
+
+A rodada reportou 2 de 44 (4,5%). Fui verificar as duas por grep no material: **ambas
+são falso positivo do juiz.** A taxa real é 0/44.
+
+| ID | O que o juiz acusou | Verificação no material |
+|---|---|---|
+| gs-043 | "APQC = American Process Quality Center" | o material diz exatamente isso |
+| gs-051 | "20 bilhões em campanhas", "PULSE AI" | ambos presentes no material |
+
+O caso `gs-043` merece registro porque é sutil: o nome real da organização é *American
+**Productivity** & Quality Center*. O mentor errou na aula, e o bot **repetiu o mentor**.
+Para um assistente de curso isso é o comportamento correto — fidelidade à fonte, não à
+verdade do mundo. Um juiz que conheça o nome certo vai marcar como alucinação; um juiz
+que só compare com os trechos vai aprovar. A segunda leitura é a que o ADR 002 quer.
+
+Consequência prática: o conjunto de calibração de 6 casos é pequeno demais. Ele pegou o
+eixo paráfrase-vs-invenção, mas não este. **Amplie antes de publicar a taxa.**
+
+### 5.5 A citação de 100% é artificial
+
+`citacao_em_respondidas = 1.00`, mas medindo antes do `_ensure_citation`: **35 de 44
+(80%) vieram do modelo**; as outras 9 foram anexadas à força pela chain.
+
+O número da tabela é verdadeiro por construção, não por mérito. Pior: anexar a citação
+do melhor chunk a uma frase que o modelo não fundamentou é atribuir fonte a uma
+afirmação não-fundamentada — o oposto do ADR 002. Decidir se `_ensure_citation` fica.
+Enquanto ficar, é 0.80 que deve ir para o README, não 1.00.
+
+---
+
+## 6. Custo
+
+| Item | Medido |
+|---|---|
+| Tokens de embedding na indexação completa | 1.242.855 (corpus real, 6.551 chunks) |
+| Custo da indexação completa | **US$ 0** — embeddings locais |
+| Tokens médios por pergunta (entrada / saída) | 1.374 / 220 |
+| Custo por 1.000 perguntas | **US$ 0** — LLM local |
+
+Com `EMBEDDING_PROVIDER=local` e o LLM no LM Studio, o pipeline inteiro roda offline:
+custo zero e **nenhum trecho do material sai da máquina**. Foi isso que permitiu medir
+esta linha de base contra o corpus real com o GOV-1 ainda pendente — a autorização volta
+a ser necessária para publicar ou para usar provedor remoto.
+
+Se migrar para API paga, os números acima dão a conta: 1.374 tokens de entrada por
+pergunta, 1,24M para reindexar o corpus. Confirme os preços vigentes antes de orçar.
+
+Contador de tokens instrumentado desde o dia 1 (FR-36, NFR-2). Confirmar os preços vigentes na página de pricing da OpenAI antes de publicar qualquer número — eles mudam.

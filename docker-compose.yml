@@ -1,0 +1,63 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: grifo-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    # Sem healthcheck de propósito: a imagem do Qdrant não traz curl nem wget, e o
+    # truque com /dev/tcp depende de bash estar lá. Se não estiver, o healthcheck
+    # nunca passa e a `api` fica presa esperando para sempre — falha silenciosa pior
+    # que o problema que resolveria. O Qdrant sobe em ~2s, e a API se declara
+    # degradada com 503 no /health enquanto ele não responde (FR-41).
+
+  api:
+    build:
+      context: .
+      target: runtime
+    container_name: grifo-api
+    command: uvicorn grifo.api.main:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./samples:/app/samples:ro
+      - ./data:/app/data
+    depends_on:
+      - qdrant
+
+  ui:
+    build:
+      context: .
+      target: runtime
+    container_name: grifo-ui
+    command: streamlit run app/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    env_file: .env
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
+  # Ingestao sob demanda, no MESMO ambiente da api -- quem clonou o repo nao precisa
+  # ter Python nem as dependencias na maquina:
+  #     docker compose run --rm ingest
+  ingest:
+    build:
+      context: .
+      target: runtime
+    profiles: ["tools"]
+    command: python -m grifo.ingest samples/
+    env_file: .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      - ./samples:/app/samples:ro
+      - ./data:/app/data
+    depends_on:
+      - qdrant

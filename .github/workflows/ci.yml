@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check src tests eval
+
+      - name: Formatação
+        run: ruff format --check src tests eval
+
+      - name: Testes unitários
+        run: pytest -m "not integration" --cov --cov-report=term-missing
+
+  # Eval de ponta a ponta: precisa de OPENAI_API_KEY (secret) e Qdrant.
+  # Destravar: `gh variable set ENABLE_EVAL --body true` no repositório.
+  eval:
+    if: vars.ENABLE_EVAL == 'true'
+    runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.12.4
+        ports: ["6333:6333"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,eval]"
+
+      - name: Indexar corpus de exemplo
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QDRANT_URL: http://localhost:6333
+        run: python -m grifo.ingest samples/
+
+      - name: Rodar avaliação
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QDRANT_URL: http://localhost:6333
+        run: python eval/run_eval.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval/results/

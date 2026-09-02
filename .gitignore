@@ -1,0 +1,70 @@
+# ─── Material do curso: NUNCA entra no git (dossiê §6.2) ───────────────
+data/raw/
+data/processed/
+data/index/
+*.pdf
+*.vtt
+*.srt
+*.pptx
+*.docx
+qdrant_storage/
+
+# Exceção: o corpus aberto/sanitizado é commitado de propósito
+!samples/**
+
+# ─── Segredos ──────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+
+# ─── Python ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+dist/
+build/
+
+# ─── Modelos / caches locais ───────────────────────────────────────────
+.cache/
+models/
+*.bin
+*.safetensors
+
+# ─── SO / editor ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+
+# ─── Ferramentas locais (binário Qdrant para validação sem Docker) ────
+tools/
+
+# ─── Material real do curso: staging de entrada, nunca versionado (GOV-2) ─
+# A pasta de staging local herdou o nome de onde o material veio, e esse nome identifica
+# a origem do conteudo -- entao o padrao dela mora em .git/info/exclude, que nao e
+# versionado. Aqui ficam so os caminhos genericos, que valem para qualquer corpus.
+/_staging/
+/material-real/
+# Golden set do corpus real: codifica modulos, mentores e temas internos do curso.
+# O golden_set.jsonl commitado e o do corpus publico de samples/.
+eval/golden_set.local.jsonl
+# Resultados do eval carregam o TEXTO dos chunks recuperados (campo `contexts`) e as
+# respostas geradas a partir dele: e material do curso. So o resumo de metricas
+# (numeros puros) e versionado, e e o que alimenta o grafico de evolucao por commit.
+eval/results/*.json
+!eval/results/metricas_*.json
+
+# Artefatos de processo interno, nao fazem parte do produto
+docs/superpowers/
+# Documento de planejamento original: nomeia a empresa e o material de origem.
+# Fica local; o que ele decidiu esta registrado na SPEC e nos ADRs.
+DOSSIE.md

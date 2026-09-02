@@ -1,0 +1,57 @@
+1
+00:00:00,000 --> 00:00:06,000
+Bem-vindos à aula de precificação, a última peça de estratégia do curso.
+
+2
+00:00:06,000 --> 00:00:18,000
+Existem três estratégias clássicas de preço: por custo, por concorrência e por valor.
+
+3
+00:00:18,000 --> 00:00:30,000
+Preço por custo soma margem sobre o custo do produto. É simples, mas ignora o quanto
+o cliente valoriza o que você vende.
+
+4
+00:00:30,000 --> 00:00:42,000
+Preço por concorrência acompanha a tabela do mercado. É confortável, mas entrega sua
+margem nas mãos do concorrente mais desesperado.
+
+5
+00:00:42,000 --> 00:00:56,000
+Preço por valor ancora a conversa no resultado econômico que o produto gera para o
+cliente. É a estratégia recomendada pelo curso: precificar o que muda na vida de quem
+compra.
+
+6
+00:00:56,000 --> 00:01:10,000
+Dentro da estratégia de valor, use a técnica da âncora: apresente primeiro a opção
+mais completa e cara, para que as demais pareçam razoáveis em comparação.
+
+7
+00:01:10,000 --> 00:01:22,000
+A âncora funciona porque o cérebro compara em vez de avaliar em absoluto. O mesmo
+plano apresentado depois de um plano premium parece barganha.
+
+8
+00:01:22,000 --> 00:01:34,000
+Três erros comuns de precificação que o professor já viu mil vezes.
+
+9
+00:01:34,000 --> 00:01:44,000
+Erro um: preço único para todos os tamanhos de cliente. Cliente grande custa menos
+por unidade e vale contrato maior.
+
+10
+00:01:44,000 --> 00:01:56,000
+Erro dois: desconto como única resposta à objeção. Desconto sem contrapartida ensina
+o cliente a pedir desconto sempre.
+
+11
+00:01:56,000 --> 00:02:08,000
+Erro três: nunca reajustar. Inflação e melhoria de produto existem; preço parado é
+margem derretendo devagar.
+
+12
+00:02:08,000 --> 00:02:20,000
+Fechando: precifique por valor, use a âncora com ética, e trate mudança de preço como
+parte normal da gestão, não como crise.
