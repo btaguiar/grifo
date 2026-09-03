@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://127.0.0.1:6333"
     qdrant_api_key: str = ""
     qdrant_collection: str = "grifo"
+    #: Timeout HTTP do cliente, em segundos. 15 era hardcoded e estourava no upsert em
+    #: lote de corpus grande com a maquina sob carga -- e o erro chega como
+    #: `ResponseHandlingException: timed out` no meio da ingestao, deixando a colecao
+    #: pela metade. Suba se indexar corpus grande.
+    qdrant_timeout: int = 60
 
     # Curso
     curso_nome: str = "Curso Exemplo"

@@ -251,12 +251,40 @@ paga ~200ms. O cliente Python amplifica isso para ~2s por busca. Uma letra no
 `QDRANT_URL` devolveu 69x na query quente e tirou o retrieval do caminho crítico do
 NFR-1 — o orçamento de 3s fica inteiro para o LLM.
 
-**Resolvido (2026-09-02).** A primeira query do processo custava ~10s — carga do modelo
-de embedding mais o scroll completo do Qdrant (26 round-trips) para montar o índice
-BM25 — e quem pagava era o primeiro aluno depois de cada deploy. A API agora aquece as
-duas coisas no `lifespan`, antes de aceitar tráfego. O aquecimento usa o filtro
-`{"curso": ...}`, o mesmo que a chain consulta: o cache do BM25 é chaveado por filtro, e
-aquecer sem ele construiria um índice que nenhuma pergunta usa.
+**Resolvido (2026-09-02), e agora medido.** A primeira query de cada processo custava
+~10s, e quem pagava era o primeiro aluno depois de cada deploy. A API agora aquece
+embedder e índice no `lifespan`, antes de aceitar tráfego.
+
+Medido no mesmo corpus real, Qdrant em container, processo novo a cada linha:
+
+| | Tempo |
+|---|---|
+| 1ª query, processo frio, sem warmup | **10,275s** |
+| 2ª query, mesmo processo | **0,031s** |
+| **Removido do caminho do primeiro aluno** | **10,24s** |
+
+E a decomposição do que o warmup paga, isolando cada parte:
+
+| Etapa | Tempo | Escala com |
+|---|---|---|
+| Carga do modelo de embedding | **12,58s** | nada — custo fixo |
+| `fetch_all` + build do BM25 (6.551 chunks) | 1,89s | tamanho do corpus |
+
+O que importa não é o total, é a divisão. O texto anterior tratava "carga do modelo +
+build do BM25" como duas parcelas comparáveis; medidas, o embedder é **87%** do custo e
+não depende do corpus, enquanto o BM25 — a parte que a intuição culpa, por causa dos 26
+round-trips — custa 1,9s. Ou seja: otimizar o scroll do Qdrant renderia no máximo 13% do
+problema, e num corpus 10x maior essa proporção pioraria pouco. Quem quiser o warmup
+instantâneo troca o provedor de embedding por uma API remota, ao custo de mandar cada
+pergunta para fora da máquina.
+
+(A soma isolada dá 14,5s contra os 10,3s da query fria porque a primeira medição pegou
+os pesos do modelo fora do cache de disco do SO. Os 10,3s são o número realista para um
+processo que reinicia num servidor quente; 14,5s é o pior caso, numa máquina fria.)
+
+O aquecimento usa o filtro `{"curso": ...}`, o mesmo que a chain consulta: o cache do
+BM25 é chaveado por filtro, e aquecer sem ele construiria um índice que nenhuma pergunta
+usa.
 
 **E o cache não invalidava após `/ingest`** — este era bug de correção, não de latência.
 O índice léxico é um snapshot do corpus tirado na primeira query. Sem descartá-lo, o
@@ -386,6 +414,49 @@ O número da tabela é verdadeiro por construção, não por mérito. Pior: anex
 do melhor chunk a uma frase que o modelo não fundamentou é atribuir fonte a uma
 afirmação não-fundamentada — o oposto do ADR 002. Decidir se `_ensure_citation` fica.
 Enquanto ficar, é 0.80 que deve ir para o README, não 1.00.
+
+---
+
+### 5.6 O `pip install` matava a busca vetorial, em silêncio (2026-09-02)
+
+O pior achado do projeto, e o mais barato de não encontrar.
+
+O `pyproject` pedia `qdrant-client>=1.12,<2`; o `docker-compose` fixava o servidor em
+`v1.12.4`. Um `pip install` feito hoje resolve para a 1.19 — e essa combinação **grava
+todos os vetores zerados**. O upsert retorna sucesso, a contagem de chunks bate, a
+ingestão termina limpa e o `/ask` responde. Só a busca vetorial está morta.
+
+O efeito em cascata, medido no corpus real:
+
+| | Com vetores zerados | Depois do conserto |
+|---|---|---|
+| "Como calcular o CAC?" | **0 chunks** | 5 chunks, scores 0,468–0,552 |
+| "O que é o Pulse?" | 4 chunks, score `0.0` | 4 chunks, scores 0,077–0,346 |
+| Origem dos chunks | só `bm25` | `vetorial` e `bm25`, conforme o caso |
+
+Todo cosseno dava exatamente 0,0, o gate do FR-24 rejeitava tudo que vinha da via
+semântica, e sobrava apenas o que o resgate léxico do ADR 001 salvava — que, por
+desenhar-se para ignorar o cosseno, era o único caminho que ainda funcionava. O sistema
+respondia com um quinto do seu retrieval e não tinha como saber disso: nenhuma exceção,
+nenhum log, nenhum teste vermelho. A avaliação inteira teria rodado e produzido números
+plausíveis, só piores.
+
+**É a terceira vez que este projeto falha do mesmo jeito.** O BM25 que reordenava sem
+resgatar (5.2), o `_point_id` acoplado ao nome da coleção, e agora isto. Em nenhum dos
+três havia erro — só resposta pior. Num RAG a falha silenciosa é o modo de falha padrão,
+porque toda camada tem um fallback plausível: se a busca vetorial morre, o léxico
+responde; se o léxico morre, o vetorial responde; e o LLM sempre escreve algo.
+
+O conserto tem duas partes, e a segunda é a que importa. Casar os pins resolve a causa
+conhecida — `qdrant-client>=1.12,<1.13`, com o acoplamento comentado nos dois arquivos.
+Mas pin não impede a próxima causa. Então `upsert_chunks` agora lê de volta um ponto que
+acabou de gravar e exige norma maior que zero, falhando alto ali mesmo: quem grava é quem
+confere. Uma ingestão que não deixa o índice pesquisável tem de quebrar na hora, não na
+primeira pergunta de um aluno. Regressão coberta em `test_hybrid.py`.
+
+Um detalhe que atrasou o diagnóstico: o cliente **avisava**
+(`UserWarning: version 1.19.0 is incompatible with server version 1.12.4`) e o aviso
+passou despercebido no meio da saída da ingestão. Warning que ninguém lê não é proteção.
 
 ---
 

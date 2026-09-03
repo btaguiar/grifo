@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from grifo.retrieval import hybrid
 from grifo.retrieval.hybrid import BM25Index, reciprocal_rank_fusion, retrieve
 
@@ -276,3 +278,64 @@ def test_invalidate_cache_forca_releitura_do_corpus(monkeypatch):
     hybrid.invalidate_cache()
     assert len(hybrid._get_bm25({"curso": "C"}).ids) == 2
     assert len(chamadas) == 2
+
+
+def _vector_store_com_vetor_lido(monkeypatch, vetor):
+    """upsert_chunks real, embedder e Qdrant falsos: isola a verificacao de gravacao."""
+    from types import SimpleNamespace
+
+    from grifo.retrieval import vector_store
+
+    monkeypatch.setattr(
+        vector_store, "_embedder", lambda: SimpleNamespace(embed_documents=lambda ts: [[0.6, 0.8]])
+    )
+    monkeypatch.setattr(vector_store, "ensure_collection", lambda name, dim: None)
+    monkeypatch.setattr(
+        vector_store,
+        "_client",
+        lambda: SimpleNamespace(
+            upsert=lambda **kw: None,
+            retrieve=lambda **kw: [SimpleNamespace(vector=vetor)],
+        ),
+    )
+    return vector_store
+
+
+CHUNK = [{"id": "a:chunk1", "text": "t", "metadata": {"curso": "C", "modulo": "1", "aula": "1"}}]
+
+
+def test_upsert_falha_alto_se_o_vetor_gravar_zerado(monkeypatch):
+    """Regressao da corrupcao silenciosa de 2026-09-02.
+
+    Com `qdrant-client` 1.19 contra servidor 1.12.4 -- combinacao que o pyproject
+    permitia -- o upsert retornava sucesso e gravava o vetor ZERADO. A ingestao
+    terminava limpa, o /ask respondia, e a busca vetorial estava morta: todo score dava
+    0.0, o gate do FR-24 rejeitava tudo, e so o resgate do BM25 chegava ao prompt.
+    Resposta pior, sem um erro sequer. Uma ingestao que nao deixa o indice pesquisavel
+    tem de falhar na hora, nao na primeira pergunta de um aluno.
+    """
+    from grifo.retrieval.vector_store import VetorZeradoError
+
+    vs = _vector_store_com_vetor_lido(monkeypatch, [0.0] * 384)
+    with pytest.raises(VetorZeradoError, match="zerado"):
+        vs.upsert_chunks(CHUNK)
+
+
+def test_upsert_passa_quando_o_vetor_gravado_tem_norma(monkeypatch):
+    vs = _vector_store_com_vetor_lido(monkeypatch, [0.6, 0.8])
+    assert vs.upsert_chunks(CHUNK) == 1
+
+
+def test_upsert_falha_se_o_ponto_some_apos_gravar(monkeypatch):
+    from grifo.retrieval.vector_store import VetorZeradoError
+
+    vs = _vector_store_com_vetor_lido(monkeypatch, [0.6, 0.8])
+    monkeypatch.setattr(
+        vs,
+        "_client",
+        lambda: __import__("types").SimpleNamespace(
+            upsert=lambda **kw: None, retrieve=lambda **kw: []
+        ),
+    )
+    with pytest.raises(VetorZeradoError, match="nao foi encontrado"):
+        vs.upsert_chunks(CHUNK)

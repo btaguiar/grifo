@@ -1,5 +1,9 @@
 services:
   qdrant:
+    # Casado com o pin do qdrant-client no pyproject: o cliente recusa diferenca de
+    # minor maior que 1. Subir esta imagem exige subir o pin junto -- e recriar o
+    # volume, porque 1.19 nao le o storage escrito por 1.12 (panic no boot, variante
+    # `on_disk` do segment.json). Medido em 2026-09-02.
     image: qdrant/qdrant:v1.12.4
     container_name: grifo-qdrant
     ports:
@@ -22,11 +26,19 @@ services:
     env_file: .env
     environment:
       QDRANT_URL: http://qdrant:6333
+    # Com EMBEDDING_PROVIDER=local, LLM ou embeddings rodando na sua maquina ficam em
+    # host.docker.internal -- dentro do container, 127.0.0.1 e o proprio container.
+    # No .env use OPENAI_BASE_URL=http://host.docker.internal:1234/v1 (ver .env.example).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
       - ./samples:/app/samples:ro
       - ./data:/app/data
+      # Sem isto, todo container novo rebaixa ~458MB do modelo de embedding antes de
+      # servir a primeira pergunta.
+      - hf-cache:/root/.cache/huggingface
     depends_on:
       - qdrant
 
@@ -56,8 +68,14 @@ services:
     env_file: .env
     environment:
       QDRANT_URL: http://qdrant:6333
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./samples:/app/samples:ro
       - ./data:/app/data
+      - hf-cache:/root/.cache/huggingface
     depends_on:
       - qdrant
+
+volumes:
+  hf-cache:

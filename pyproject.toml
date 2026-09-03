@@ -19,7 +19,7 @@ dependencies = [
     "langchain-qdrant>=0.2,<0.3",
     "langchain-text-splitters>=0.3,<0.4",
     # Vector store e busca
-    "qdrant-client>=1.12,<2",
+    "qdrant-client>=1.12,<1.13",   # casado com a imagem do compose (ver docker-compose.yml)
     "rank-bm25>=0.2.2,<0.3",
     "sentence-transformers>=3.0,<4",   # cross-encoder do reranker
     # Ingestão
@@ -71,7 +71,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+# `pytest` puro roda so o que nao precisa de servico externo -- e o que o README
+# promete. `pytest -m integration` sobrescreve e roda os que exigem Qdrant.
+addopts = "-q --strict-markers -m 'not integration'"
 markers = [
     "integration: exige serviços externos (Qdrant, OpenAI)",
 ]

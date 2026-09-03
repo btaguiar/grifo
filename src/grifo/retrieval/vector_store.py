@@ -33,7 +33,7 @@ def _client() -> QdrantClient:
     return QdrantClient(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key or None,
-        timeout=15,
+        timeout=settings.qdrant_timeout,
     )
 
 
@@ -123,6 +123,39 @@ def ensure_collection(name: str, dim: int) -> None:
         )
 
 
+class VetorZeradoError(RuntimeError):
+    """O ponto foi gravado, mas sem vetor utilizavel."""
+
+
+def assert_vetores_gravados(chunk_id: str, collection: str | None = None) -> None:
+    """Le de volta um ponto recem-gravado e exige que o vetor tenha norma > 0.
+
+    Existe por causa de uma falha silenciosa real (2026-09-02): com `qdrant-client`
+    1.19 contra servidor 1.12.4 -- combinacao que o pyproject permitia --, o upsert
+    retornava sucesso e gravava o vetor ZERADO. Nada falhava: a ingestao terminava
+    limpa, o /ask respondia, e a busca vetorial estava morta. Todo score dava 0.0, o
+    gate do FR-24 rejeitava tudo, e so os chunks resgatados pelo BM25 chegavam ao
+    prompt -- resposta pior, sem um erro sequer.
+
+    O pin de versao conserta a causa conhecida; isto pega a classe do problema. Uma
+    ingestao que nao deixa o indice pesquisavel tem de falhar na hora, nao na primeira
+    pergunta de um aluno.
+    """
+    colecao = collection or settings.qdrant_collection
+    pontos = _client().retrieve(
+        collection_name=colecao, ids=[_point_id(chunk_id)], with_vectors=True
+    )
+    if not pontos:
+        raise VetorZeradoError(f"chunk '{chunk_id}' nao foi encontrado apos o upsert")
+    vetor = pontos[0].vector
+    if not isinstance(vetor, list) or math.sqrt(sum(x * x for x in vetor)) == 0.0:
+        raise VetorZeradoError(
+            f"o vetor de '{chunk_id}' foi gravado zerado na colecao '{colecao}': a busca "
+            "vetorial ficaria morta em silencio. Causa conhecida: divergencia de versao "
+            "entre qdrant-client e o servidor Qdrant -- confira os dois pins."
+        )
+
+
 def upsert_chunks(chunks: list[dict], collection: str | None = None) -> int:
     """Indexa os chunks (embeda o texto aqui). Devolve a quantidade escrita."""
     if not chunks:
@@ -144,6 +177,8 @@ def upsert_chunks(chunks: list[dict], collection: str | None = None) -> int:
         ]
         _client().upsert(collection_name=colecao, points=points, wait=True)
         escritos += len(points)
+    # Le de volta um ponto e exige vetor com norma: quem grava e quem confere.
+    assert_vetores_gravados(chunks[0]["id"], colecao)
     return escritos
 
 

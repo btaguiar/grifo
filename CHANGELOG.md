@@ -75,6 +75,19 @@ pelo primeiro aluno depois de cada deploy.
 **O default do `QDRANT_URL` ainda era `localhost`.** A correção de 69x tinha entrado no
 `.env` e não no código: quem clonasse sem definir a variável pegava a rota lenta de volta.
 
+**O `pip install` matava a busca vetorial.** O `pyproject` permitia `qdrant-client<2` e
+o compose fixava o servidor em 1.12.4; a combinação grava todos os vetores zerados, sem
+erro nenhum. Ingestão limpa, `/ask` respondendo, e o retrieval semântico morto — só o
+resgate léxico do ADR 001 ainda entregava chunks, porque é o único caminho desenhado
+para ignorar o cosseno. Pins casados, e `upsert_chunks` agora lê de volta o que gravou e
+falha alto se o vetor vier sem norma. Detalhes em [EVALUATION](EVALUATION.md) 5.6.
+
+**Caminho do Docker validado de ponta a ponta.** Três correções vieram daí: o LLM local
+era inalcançável de dentro do container (`127.0.0.1` é o próprio container —
+`host.docker.internal` e `extra_hosts` resolvem), todo container novo rebaixava 458MB do
+modelo de embedding (agora num volume), e o timeout de 15s do cliente Qdrant, hardcoded,
+estourava no meio da ingestão de corpus grande.
+
 **Auditoria de governança antes de publicar (GOV-5).** Nenhum segredo em nenhum commit e
 o material do curso nunca versionado — mas a *origem* do material vazava, e foi o que
 motivou refazer o histórico.

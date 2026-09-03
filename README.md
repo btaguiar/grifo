@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/btaguiar/grifo/actions/workflows/ci.yml/badge.svg)](https://github.com/btaguiar/grifo/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
-![Testes](https://img.shields.io/badge/testes-110-green)
+![Testes](https://img.shields.io/badge/testes-113-green)
 
 > **Status:** pipeline completo funcionando e primeira linha de base medida sobre um corpus real de 24 sessões e 6.551 trechos. Falta resolver latência e publicar a demo. Nenhum número aqui é estimativa: ou foi medido, ou está vazio.
 
@@ -114,7 +114,7 @@ Desenvolvimento:
 ```bash
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                # 110 testes, sem serviços externos
+pytest                                # 113 testes, sem serviços externos
 pytest -m integration                 # 4 testes, exigem Qdrant no ar
 python eval/calibrar_retrieval.py     # varreduras de calibração
 python eval/run_eval.py               # suite completa de avaliação
