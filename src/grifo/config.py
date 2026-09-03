@@ -87,6 +87,14 @@ class Settings(BaseSettings):
     golden_set: Path = Path("eval/golden_set.jsonl")
     #: false = run_eval calcula as métricas sem reprovar o build abaixo das metas.
     eval_strict: bool = True
+    #: Requisições concorrentes do RAGAS ao LLM. O default dele é 16, que derruba um
+    #: servidor local servindo um modelo só: medido, até 2 concorrentes já fazem o
+    #: `faithfulness` sair como NaN em TODOS os itens (timeout), e o relatório grava a
+    #: métrica como se fosse resultado. Com 1, os mesmos itens calculam normalmente.
+    #: Suba para provedor remoto, onde a concorrência é o que torna a rodada viável.
+    ragas_max_workers: int = 1
+    #: Segundos por job do RAGAS. O default dele é 180, apertado para LLM local.
+    ragas_timeout: int = 600
 
     # Analytics
     question_log_path: Path = Path("data/processed/question_log.jsonl")

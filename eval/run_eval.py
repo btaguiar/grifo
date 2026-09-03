@@ -189,6 +189,7 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
             answer_relevancy,
             faithfulness,
         )
+        from ragas.run_config import RunConfig
     except ImportError as exc:
         # Distinguir ausencia de incompatibilidade: o ragas <0.3 importava
         # `langchain_community.chat_models.vertexai`, que sumiu no langchain 1.x, e o
@@ -217,6 +218,9 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
             ],
             llm=LangchainLLMWrapper(_llm_do_eval()),
             embeddings=_embeddings_para_ragas(),
+            run_config=RunConfig(
+                timeout=settings.ragas_timeout, max_workers=settings.ragas_max_workers
+            ),
         )
         # RAGAS 0.4 devolve um EvaluationResult (nao um dict): a media por metrica sai
         # das colunas numericas do dataframe, uma linha por item avaliado.
