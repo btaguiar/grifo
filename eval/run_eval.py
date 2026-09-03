@@ -119,7 +119,11 @@ SIM ou NÃO:"""
 
 
 def _llm_do_eval():
-    """Mesma construcao de grifo.generation.chain._default_llm.
+    """LLM do JUIZ -- `EVAL_LLM_MODEL`, caindo para `LLM_MODEL` quando nao definido.
+
+    Separar os dois importa: com um so, o mesmo modelo responde e julga a propria
+    resposta, o que infla faithfulness e mascara alucinacao. O default preserva o
+    comportamento antigo para nao mudar rodada nenhuma em silencio.
 
     O api_key precisa ser passado explicitamente: pydantic-settings le o .env para o
     objeto Settings, NAO para os.environ, entao o ChatOpenAI nao o encontra sozinho.
@@ -128,7 +132,7 @@ def _llm_do_eval():
     from pydantic import SecretStr
 
     return ChatOpenAI(
-        model=settings.llm_model,
+        model=settings.eval_llm_model or settings.llm_model,
         temperature=0,
         api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
         base_url=settings.openai_base_url or None,
@@ -374,6 +378,11 @@ def _salvar(resultado: dict) -> Path:
                 "metricas": resultado["metricas"],
                 "config": {
                     "llm_model": settings.llm_model,
+                    # Quem JULGOU. Sem este campo a rodada nao e reproduzivel (NFR-8):
+                    # o mesmo corpus julgado por modelos diferentes da numeros diferentes,
+                    # e "modelo se auto-julgando" e um resultado diferente de "juiz
+                    # independente" -- ver 5.7.
+                    "eval_llm_model": settings.eval_llm_model or settings.llm_model,
                     "embedding_model": settings.embedding_model,
                     "score_threshold": settings.score_threshold,
                     "final_k": settings.final_k,

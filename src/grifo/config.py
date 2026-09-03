@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     embedding_provider: str = "openai"
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o-mini"
+    #: Modelo do JUIZ da avaliacao (juiz de alucinacao e metricas RAGAS). Vazio = usa
+    #: `llm_model`, que era o comportamento anterior -- e nele o mesmo modelo responde e
+    #: julga a propria resposta. Aponte para um modelo mais forte antes de publicar
+    #: qualquer numero: auto-julgamento infla faithfulness e mascara alucinacao.
+    eval_llm_model: str = ""
     llm_temperature: float = 0.0
 
     # Qdrant

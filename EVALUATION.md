@@ -78,6 +78,49 @@ ainda produz falso positivo em dado real, então o número exige inspeção manu
 
 ---
 
+### 3.3 Corpus público com provedor remoto — 2026-09-03
+
+Primeira rodada em que as métricas RAGAS saíram. 55 itens de `eval/golden_set.jsonl`
+sobre o corpus de `samples/` (22 chunks), `gpt-4o-mini` respondendo e **`gpt-4o`
+julgando** — modelos diferentes, pelo motivo da 5.7.
+
+| Métrica | Meta v1 | Medido | |
+|---|---|---|---|
+| Context Precision (sem referência) | > 0.75 | **0.96** | atinge |
+| Context Recall | > 0.70 | — | não mensurável, ver 5.7 |
+| Faithfulness | > 0.90 | **0.81** | **não atinge** |
+| Answer Relevance | > 0.80 | **0.83** | atinge |
+| Taxa de recusa correta | > 0.95 | **1.00** | atinge |
+| Taxa de alucinação | < 2% | **0.00** | atinge |
+| **Latência p95** | < 3s | **2,58s** | **atinge** |
+
+Complementares: taxa de resposta 0.60 (33/55), fonte correta nas respondidas **0.97**
+(32/33), citação 1.00, 601 tokens de entrada por resposta. As três métricas RAGAS têm
+`n=33` — todos os itens respondidos entraram, nenhum job falhou.
+
+**A latência atinge a meta, e isso reposiciona o NFR-1.** O projeto vinha registrando
+"falha por 6x" a partir de 19,9s medidos com um 7B local. Com provedor remoto o p95 cai
+para 2,58s: o gargalo nunca foi a arquitetura, era o modelo. O retrieval já custava 30ms
+(4.5) e a geração é que consumia o orçamento.
+
+A ressalva que impede declarar o NFR-1 cumprido: este corpus tem 22 chunks contra 6.551
+do real, e o prompt correspondente é 601 tokens contra 1.374. A medição remota anterior
+sobre o corpus real deu 6,6s. Então o que está provado é que **a meta é alcançável com
+provedor remoto**, não que ela seja cumprida no corpus real — para isso falta uma rodada
+remota sobre ele, que hoje esbarra no GOV-1.
+
+**Faithfulness em 0.81 é o número mais útil desta tabela**, justamente por não atingir a
+meta. Ele mede o quanto a resposta se sustenta nos trechos recuperados, e é a primeira
+medida independente disso — o juiz de alucinação próprio, que dá 0.00, é mais permissivo
+por desenho: só acusa fato novo, e trata reformulação como fiel (ver o prompt em
+`run_eval.py`). Dois números diferentes medindo coisas próximas, e o mais rigoroso é o
+que reprova.
+
+Estes números **não substituem** a linha de base da 3.1: corpus diferente, muito menor.
+A comparação direta entre eles não é válida.
+
+---
+
 ## 4. Calibração de parâmetros
 
 O ponto de partida está em SPEC seção 7. Estes números **não** são para aceitar — são para medir e ajustar. Cada tabela abaixo se preenche com uma varredura sobre o golden set.
@@ -457,6 +500,37 @@ primeira pergunta de um aluno. Regressão coberta em `test_hybrid.py`.
 Um detalhe que atrasou o diagnóstico: o cliente **avisava**
 (`UserWarning: version 1.19.0 is incompatible with server version 1.12.4`) e o aviso
 passou despercebido no meio da saída da ingestão. Warning que ninguém lê não é proteção.
+
+---
+
+### 5.7 Duas falhas de método, não de código (2026-09-03)
+
+Ao fazer o RAGAS rodar pela primeira vez, o que apareceu não foram bugs.
+
+**O mesmo modelo respondia e julgava a própria resposta.** `_llm_do_eval()` lia
+`LLM_MODEL` — o modelo do chatbot. Então o juiz de alucinação e as métricas RAGAS eram
+calculados pelo mesmo modelo que produziu o texto sob avaliação. Auto-julgamento infla
+faithfulness e mascara alucinação, e nenhum número medido assim era defensável.
+Existe agora `EVAL_LLM_MODEL`, com default vazio caindo para `LLM_MODEL` — para não
+mudar rodada anterior nenhuma em silêncio. A rodada da 3.3 é a primeira com juiz
+separado: `gpt-4o` julgando `gpt-4o-mini`.
+
+**Context recall não é mensurável com este golden set, e a causa é de desenho.** O RAGAS
+a calcula contra um campo `reference`: a resposta correta, escrita à mão. O DC-3 guarda
+`expected_source` e `expected_answer_contains` — uma lista de trechos que a resposta
+deve conter. Isso sustenta as métricas próprias do projeto e não sustenta a do RAGAS.
+Pelo mesmo motivo, `context_precision` entra na variante sem referência, que julga os
+contextos contra a resposta gerada em vez de contra um gabarito.
+
+Medir context recall exige escrever 55 respostas de referência à mão. É trabalho real, e
+enquanto não existir a linha fica declarada como não medida — nunca estimada por
+aproximação a partir do `expected_answer_contains`, que seria fabricar um gabarito e
+depois se avaliar contra ele.
+
+**Um limite que vale para os dois casos:** o LLM local de 7B usado nas rodadas anteriores
+é instável demais para sustentar qualquer um desses números. Medido, o mesmo item
+respondido numa rodada foi recusado na seguinte, com os mesmos dados e `temperature=0`.
+Foi o que motivou a rodada remota da 3.3.
 
 ---
 

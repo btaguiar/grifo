@@ -30,17 +30,24 @@ cenoura?"* devolve a recusa. As duas respostas estão certas.
 
 ## Métricas
 
-Medidas sobre o corpus real, 64 perguntas num golden set com 20% de perguntas
-deliberadamente **fora** do escopo. Metodologia, calibração e análise de erro em
-[EVALUATION.md](EVALUATION.md).
+Dois corpora, dois setups, nenhuma estimativa. Metodologia, calibração e análise de erro
+em [EVALUATION.md](EVALUATION.md).
 
-| Métrica | Meta | Medido |
-|---|---|---|
-| **Taxa de recusa correta** | > 0.95 | **1.00** (11/11) |
-| **Taxa de alucinação** | < 2% | **0.00** (0/44, verificado à mão) |
-| Acerto de fonte (top-5) | — | **0.79** |
-| Citação espontânea do modelo | — | 0.80 |
-| Latência p95 | < 3s | 6,6s remoto · 19,9s local — **não atinge** |
+| Métrica | Meta | Corpus real, LLM local | Corpus de exemplo, LLM remoto |
+|---|---|---|---|
+| **Taxa de recusa correta** | > 0.95 | **1.00** (11/11) | **1.00** |
+| **Taxa de alucinação** | < 2% | **0.00** (verificado à mão) | **0.00** |
+| Acerto de fonte | — | 0.79 | **0.97** |
+| Faithfulness (RAGAS) | > 0.90 | — | 0.81 — **não atinge** |
+| Context Precision (RAGAS) | > 0.75 | — | **0.96** |
+| Answer Relevance (RAGAS) | > 0.80 | — | **0.83** |
+| Latência p95 | < 3s | 19,9s — não atinge | **2,58s** — atinge |
+
+A segunda coluna é a linha de base sobre o material real (64 perguntas, 20% fora do
+escopo). A terceira é o corpus de exemplo deste repositório (55 perguntas), com
+`gpt-4o-mini` respondendo e **`gpt-4o` julgando** — modelos separados de propósito, para
+o avaliador não ser o avaliado. As colunas **não são comparáveis entre si**: corpora de
+tamanhos muito diferentes.
 
 As duas primeiras são métricas próprias, não do RAGAS. São as que importam num contexto
 educacional: um aluno que recebe informação errada com confiança está pior do que um
@@ -143,9 +150,9 @@ Declaradas de propósito, não esquecidas:
 - Um curso por índice — sem multi-tenant.
 - Sem autenticação de aluno nem integração com plataforma.
 - Contexto de sessão curto, sem memória de conversa longa.
-- Sem streaming de resposta — e com a latência atual, ele faz falta.
-- A latência não atinge a meta de 3s: 95% do tempo é a geração, e o caminho para
-  resolver passa por reduzir o número de trechos no prompt ou trocar de modelo.
+- Sem streaming de resposta — e com LLM local, ele faz falta.
+- A latência depende inteiramente do modelo, não da arquitetura: o retrieval custa 30ms.
+  Com provedor remoto o p95 é 2,58s e cumpre a meta; com um 7B local, 19,9s.
 - O juiz de alucinação é um modelo 7B calibrado contra 6 casos. Suficiente para não
   estar obviamente quebrado, insuficiente para publicar a taxa sem revisão manual.
 
