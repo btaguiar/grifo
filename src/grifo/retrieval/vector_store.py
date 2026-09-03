@@ -123,6 +123,18 @@ def ensure_collection(name: str, dim: int) -> None:
         )
 
 
+def _vetor_simples(vetor: object) -> list[float] | None:
+    """O vetor do ponto como lista de floats, ou None se vier noutra forma.
+
+    O `vector` do Qdrant e uma uniao: vetor simples, multivetor, mapa de vetores
+    nomeados ou None. Este projeto usa so o primeiro caso -- qualquer outra forma e
+    tratada como ausencia de vetor, e nao como algo a adivinhar.
+    """
+    if isinstance(vetor, list) and all(isinstance(x, int | float) for x in vetor):
+        return [float(x) for x in vetor]
+    return None
+
+
 class VetorZeradoError(RuntimeError):
     """O ponto foi gravado, mas sem vetor utilizavel."""
 
@@ -147,8 +159,8 @@ def assert_vetores_gravados(chunk_id: str, collection: str | None = None) -> Non
     )
     if not pontos:
         raise VetorZeradoError(f"chunk '{chunk_id}' nao foi encontrado apos o upsert")
-    vetor = pontos[0].vector
-    if not isinstance(vetor, list) or math.sqrt(sum(x * x for x in vetor)) == 0.0:
+    vetor = _vetor_simples(pontos[0].vector)
+    if vetor is None or math.sqrt(sum(x * x for x in vetor)) == 0.0:
         raise VetorZeradoError(
             f"o vetor de '{chunk_id}' foi gravado zerado na colecao '{colecao}': a busca "
             "vetorial ficaria morta em silencio. Causa conhecida: divergencia de versao "
@@ -237,7 +249,7 @@ def score_by_ids(
     hits = []
     for p in pontos:
         payload = p.payload or {}
-        vetor = p.vector if isinstance(p.vector, list) else None
+        vetor = _vetor_simples(p.vector)
         if vetor is None:
             continue
         hits.append(

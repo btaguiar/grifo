@@ -88,6 +88,25 @@ era inalcançável de dentro do container (`127.0.0.1` é o próprio container �
 modelo de embedding (agora num volume), e o timeout de 15s do cliente Qdrant, hardcoded,
 estourava no meio da ingestão de corpus grande.
 
+**71 vulnerabilidades conhecidas, e o padrão por trás delas.** Um alerta do Dependabot
+levou a uma auditoria completa: 71 avisos em 9 pacotes. O achado não foi nenhum CVE em
+particular — foi que **todo upper bound do `pyproject` estava exatamente abaixo da
+versão que corrige**. `pypdf<6` com a correção em 6.x, `langchain<0.4` com a correção em
+1.3.9, `fastapi<0.116` prendendo o starlette, `sentence-transformers<4` prendendo o
+transformers. Os tetos foram escritos para proteger de breaking changes e viraram uma
+parede contra correção de segurança.
+
+Analisadas uma a uma contra o que o projeto de fato executa, quase nenhuma era
+alcançável: os avisos do langchain são em carregadores de prompt de arquivo e em
+contagem de tokens de imagem, que este código não usa; os do transformers são em
+`from_pretrained` de repositório hostil e em treino. A exceção real era o `pypdf`, que
+parseia PDF — entrada não confiável — no caminho de ingestão.
+
+Subidos todos assim mesmo, porque o teto não tinha justificativa técnica: zero
+vulnerabilidades ao fim. O embedding foi conferido bit a bit antes e depois (cosseno
+1,0000000000), então o índice existente continua válido. `pip-audit` entrou nas
+dependências de desenvolvimento para isto ser reprodutível.
+
 **Auditoria de governança antes de publicar (GOV-5).** Nenhum segredo em nenhum commit e
 o material do curso nunca versionado — mas a *origem* do material vazava, e foi o que
 motivou refazer o histórico.

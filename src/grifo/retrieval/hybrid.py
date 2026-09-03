@@ -254,12 +254,12 @@ def retrieve(question: str, k: int, filters: dict | None = None) -> list[dict]:
 
     resultado = []
     for cid, _rrf in fused:
-        hit = por_id.get(cid)
-        if hit is None:  # id do BM25 que sumiu do indice entre o cache e a consulta
+        candidato = por_id.get(cid)
+        if candidato is None:  # id do BM25 que sumiu do indice entre o cache e a consulta
             continue
         # FR-24: o gate de cosseno vale para o que veio do vetorial. O resgatado ja
         # passou por um gate proprio (termo raro), entao nao e barrado pelo cosseno.
-        if cid not in resgatados and hit["score"] < settings.score_threshold:
+        if cid not in resgatados and candidato["score"] < settings.score_threshold:
             continue
-        resultado.append(hit)
+        resultado.append(candidato)
     return resultado[:k]
