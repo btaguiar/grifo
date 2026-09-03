@@ -1,5 +1,7 @@
 """Métricas próprias do eval como funções puras (testáveis sem API key)."""
 
+from pathlib import Path
+
 import pytest
 
 from grifo.config import REFUSAL_MESSAGE
@@ -74,3 +76,39 @@ def test_registro_do_eval_carrega_texto_e_nao_etiqueta():
     )
     assert "custo total de aquisicao" in contexto_do_juiz  # o texto chega ao juiz
     assert "[Módulo 2 - Metricas, Aula 4 - CAC e LTV]" in contexto_do_juiz
+
+
+def test_resumo_versionado_nao_carrega_o_nome_do_curso(tmp_path, monkeypatch):
+    """Regressão GOV-5: o `metricas_*.json` é commitado e era regenerado com CURSO_NOME.
+
+    Num corpus real esse campo é o nome da escola dona do material. A auditoria tirou o
+    nome dos arquivos rastreados, mas este era reescrito a cada rodada a partir do
+    `.env` — então limpar uma vez não bastava, e a próxima avaliação o republicaria.
+    """
+    import json
+
+    from eval import run_eval
+
+    monkeypatch.setattr(run_eval, "RESULTADOS", tmp_path)
+    monkeypatch.setattr(run_eval.settings, "curso_nome", "Escola Secreta")
+    monkeypatch.setattr(run_eval.settings, "golden_set", Path("eval/golden_set.local.jsonl"))
+    run_eval._salvar({"metricas": {"total_itens": 1}})
+
+    resumo = next(tmp_path.glob("metricas_*.json"))
+    conteudo = resumo.read_text(encoding="utf-8")
+    assert "Escola Secreta" not in conteudo
+    assert json.loads(conteudo)["corpus"] == "real (privado)"
+
+
+def test_resumo_versionado_recusa_NaN(tmp_path, monkeypatch):
+    """`NaN` não é JSON válido: melhor estourar que gravar arquivo ilegível por terceiros.
+
+    Uma métrica RAGAS que falhou em parte dos itens virava NaN e era gravada como se
+    fosse número — e `JSON.parse` ou `jq` rejeitam o arquivo inteiro.
+    """
+    from eval import run_eval
+
+    monkeypatch.setattr(run_eval, "RESULTADOS", tmp_path)
+    monkeypatch.setattr(run_eval.settings, "golden_set", Path("eval/golden_set.jsonl"))
+    with pytest.raises(ValueError):
+        run_eval._salvar({"metricas": {"faithfulness": float("nan")}})

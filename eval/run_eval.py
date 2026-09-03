@@ -220,9 +220,19 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
         )
         # RAGAS 0.4 devolve um EvaluationResult (nao um dict): a media por metrica sai
         # das colunas numericas do dataframe, uma linha por item avaliado.
+        #
+        # Item que falhou (timeout, estouro de contexto) vira NaN na coluna, e a media
+        # simples propaga o NaN para a metrica inteira. Medido: `faithfulness` saiu NaN
+        # de 4 jobs falhos em 64 itens, e foi gravada como se fosse um numero. Aqui a
+        # media ignora os NaN e o `_n` diz quantos itens sustentam cada valor -- uma
+        # metrica com n baixo e um aviso, nao um resultado.
         df = resultado.to_pandas()
-        numericas = [c for c in df.columns if df[c].dtype.kind == "f"]
-        return {c: round(float(df[c].mean()), 4) for c in numericas}
+        saida: dict[str, float | int | None] = {}
+        for coluna in (c for c in df.columns if df[c].dtype.kind == "f"):
+            validos = df[coluna].dropna()
+            saida[coluna] = round(float(validos.mean()), 4) if len(validos) else None
+            saida[f"{coluna}_n"] = len(validos)
+        return saida
     except Exception as exc:
         print(f"aviso: RAGAS falhou ({exc}); continuando com as métricas próprias")
         return None
@@ -331,17 +341,32 @@ def _salvar(resultado: dict) -> Path:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     commit = _commit_hash()
     cabecalho = {"timestamp": stamp, "commit": commit, "curso": settings.curso_nome}
+    # O resumo e VERSIONADO (excecao `!metricas_*.json` no .gitignore), entao ele nao
+    # pode carregar `CURSO_NOME`: num corpus real esse campo e o nome da escola dona do
+    # material, e a auditoria GOV-5 tirou esse nome do repo. O arquivo era regenerado a
+    # cada rodada com o valor do .env, entao a limpeza de uma vez nao bastava. Para ler
+    # o numero, o que importa e QUAL corpus foi medido -- nao como ele se chama.
+    corpus = (
+        "real (privado)"
+        if settings.golden_set.name.endswith(".local.jsonl")
+        else "publico (samples/)"
+    )
+    cabecalho_publico = {"timestamp": stamp, "commit": commit, "corpus": corpus}
 
     caminho = RESULTADOS / f"eval_{stamp}_{commit}.json"
     caminho.write_text(
-        json.dumps({**resultado, **cabecalho}, ensure_ascii=False, indent=2),
+        # allow_nan=False: `NaN` e extensao do Python, nao JSON valido -- `JSON.parse`,
+        # `jq` e parsers estritos rejeitam. Estes arquivos sao o artefato versionado do
+        # grafico de evolucao, entao e melhor estourar aqui do que gravar um resultado
+        # que o consumidor nao consegue ler.
+        json.dumps({**resultado, **cabecalho}, ensure_ascii=False, indent=2, allow_nan=False),
         encoding="utf-8",
     )
 
     (RESULTADOS / f"metricas_{stamp}_{commit}.json").write_text(
         json.dumps(
             {
-                **cabecalho,
+                **cabecalho_publico,
                 "metricas": resultado["metricas"],
                 "config": {
                     "llm_model": settings.llm_model,
@@ -356,6 +381,7 @@ def _salvar(resultado: dict) -> Path:
             },
             ensure_ascii=False,
             indent=2,
+            allow_nan=False,
         ),
         encoding="utf-8",
     )
