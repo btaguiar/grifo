@@ -56,8 +56,14 @@ dev = [
     "pip-audit>=2.10,<3",
 ]
 eval = [
-    "ragas>=0.2,<0.3",
-    "datasets>=3.0,<4",
+    # <0.3 importava `langchain_community.chat_models.vertexai`, que sumiu no
+    # langchain 1.x -- e o ImportError virava "RAGAS nao instalado" no relatorio.
+    "ragas>=0.4,<0.5",
+    # O ragas 0.4.3 AINDA importa aquele modulo, e o langchain-community 0.4 (que
+    # esta sendo descontinuado) ja o removeu. Segurar em 0.3.x e o que faz o ragas
+    # carregar. So o extra `eval` paga isso: o runtime nao instala community.
+    "langchain-community>=0.3,<0.4",
+    "datasets>=5.0.1,<6",
     "pandas>=2.2,<3",
     "matplotlib>=3.9,<4",
 ]

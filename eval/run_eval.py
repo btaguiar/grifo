@@ -166,15 +166,35 @@ def _embeddings_para_ragas():
 
 
 def _ragas_metricas(itens: list[dict]) -> dict | None:
-    """RAGAS opcional: falta de chave, de pacote ou erro de API não derruba o eval."""
+    """RAGAS opcional: falta de chave, de pacote ou erro de API não derruba o eval.
+
+    Três das quatro métricas da SPEC seção 8 saem daqui. A quarta, **context recall**,
+    não sai: o RAGAS a calcula contra um campo `reference` — a resposta correta escrita
+    à mão — e o golden set (DC-3) não tem isso. Ele guarda `expected_source` e
+    `expected_answer_contains`, que sustentam as métricas próprias do projeto. Medir
+    context recall exige escrever uma resposta de referência para cada item; enquanto
+    isso não existe, a linha fica declarada como não medida em vez de estimada.
+
+    Pelo mesmo motivo, `context_precision` entra na variante **sem referência**, que
+    julga os contextos contra a resposta gerada em vez de contra um gabarito.
+    """
     if not settings.openai_api_key:
         return None
     try:
         from datasets import Dataset
         from ragas import evaluate
         from ragas.llms import LangchainLLMWrapper
-        from ragas.metrics import answer_relevancy, context_precision, faithfulness
-    except ImportError:
+        from ragas.metrics import (
+            LLMContextPrecisionWithoutReference,
+            answer_relevancy,
+            faithfulness,
+        )
+    except ImportError as exc:
+        # Distinguir ausencia de incompatibilidade: o ragas <0.3 importava
+        # `langchain_community.chat_models.vertexai`, que sumiu no langchain 1.x, e o
+        # ImportError silencioso virava "RAGAS nao instalado" no relatorio -- errado.
+        if "ragas" not in str(exc) and "No module named 'ragas'" not in str(exc):
+            print(f"aviso: RAGAS instalado mas nao carrega ({exc}); verifique os pins")
         return None
     try:
         dados = Dataset.from_list(
@@ -190,11 +210,19 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
         )
         resultado = evaluate(
             dados,
-            metrics=[context_precision, faithfulness, answer_relevancy],
+            metrics=[
+                LLMContextPrecisionWithoutReference(),
+                faithfulness,
+                answer_relevancy,
+            ],
             llm=LangchainLLMWrapper(_llm_do_eval()),
             embeddings=_embeddings_para_ragas(),
         )
-        return {k: round(float(v), 4) for k, v in resultado.items()}
+        # RAGAS 0.4 devolve um EvaluationResult (nao um dict): a media por metrica sai
+        # das colunas numericas do dataframe, uma linha por item avaliado.
+        df = resultado.to_pandas()
+        numericas = [c for c in df.columns if df[c].dtype.kind == "f"]
+        return {c: round(float(df[c].mean()), 4) for c in numericas}
     except Exception as exc:
         print(f"aviso: RAGAS falhou ({exc}); continuando com as métricas próprias")
         return None
