@@ -139,8 +139,8 @@ class VetorZeradoError(RuntimeError):
     """O ponto foi gravado, mas sem vetor utilizavel."""
 
 
-def assert_vetores_gravados(chunk_id: str, collection: str | None = None) -> None:
-    """Le de volta um ponto recem-gravado e exige que o vetor tenha norma > 0.
+def assert_vetores_gravados(chunk_ids: list[str], collection: str | None = None) -> None:
+    """Le de volta os pontos indicados e exige que TODOS tenham vetor com norma > 0.
 
     Existe por causa de uma falha silenciosa real (2026-09-02): com `qdrant-client`
     1.19 contra servidor 1.12.4 -- combinacao que o pyproject permitia --, o upsert
@@ -152,20 +152,32 @@ def assert_vetores_gravados(chunk_id: str, collection: str | None = None) -> Non
     O pin de versao conserta a causa conhecida; isto pega a classe do problema. Uma
     ingestao que nao deixa o indice pesquisavel tem de falhar na hora, nao na primeira
     pergunta de um aluno.
+
+    Conferir UM ponto nao basta, e isso tambem foi medido: uma ingestao de 6.551 chunks
+    saiu inteira zerada e passou pela versao anterior desta funcao, que olhava so o
+    primeiro. Por isso a amostra atravessa o lote -- inicio, meio e fim -- e um unico
+    vetor sem norma reprova a ingestao toda.
     """
     colecao = collection or settings.qdrant_collection
+    if not chunk_ids:
+        return
     pontos = _client().retrieve(
-        collection_name=colecao, ids=[_point_id(chunk_id)], with_vectors=True
+        collection_name=colecao, ids=[_point_id(c) for c in chunk_ids], with_vectors=True
     )
-    if not pontos:
-        raise VetorZeradoError(f"chunk '{chunk_id}' nao foi encontrado apos o upsert")
-    vetor = _vetor_simples(pontos[0].vector)
-    if vetor is None or math.sqrt(sum(x * x for x in vetor)) == 0.0:
+    if len(pontos) != len(chunk_ids):
         raise VetorZeradoError(
-            f"o vetor de '{chunk_id}' foi gravado zerado na colecao '{colecao}': a busca "
-            "vetorial ficaria morta em silencio. Causa conhecida: divergencia de versao "
-            "entre qdrant-client e o servidor Qdrant -- confira os dois pins."
+            f"apos o upsert, {len(pontos)} de {len(chunk_ids)} pontos amostrados foram "
+            f"encontrados na colecao '{colecao}'"
         )
+    for ponto in pontos:
+        vetor = _vetor_simples(ponto.vector)
+        if vetor is None or math.sqrt(sum(x * x for x in vetor)) == 0.0:
+            raise VetorZeradoError(
+                f"vetor gravado zerado na colecao '{colecao}' (amostra de "
+                f"{len(chunk_ids)} pontos): a busca vetorial ficaria morta em silencio. "
+                "Causas ja vistas: divergencia de versao entre qdrant-client e servidor, "
+                "e ingestao grande sob pressao de memoria. Reindexe e confira os pins."
+            )
 
 
 def upsert_chunks(chunks: list[dict], collection: str | None = None) -> int:
@@ -189,8 +201,9 @@ def upsert_chunks(chunks: list[dict], collection: str | None = None) -> int:
         ]
         _client().upsert(collection_name=colecao, points=points, wait=True)
         escritos += len(points)
-    # Le de volta um ponto e exige vetor com norma: quem grava e quem confere.
-    assert_vetores_gravados(chunks[0]["id"], colecao)
+    # Amostra atravessando o lote -- quem grava e quem confere.
+    amostra = {0, len(chunks) // 2, len(chunks) - 1}
+    assert_vetores_gravados([chunks[i]["id"] for i in sorted(amostra)], colecao)
     return escritos
 
 

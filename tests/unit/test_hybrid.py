@@ -337,7 +337,7 @@ def test_upsert_falha_se_o_ponto_some_apos_gravar(monkeypatch):
             upsert=lambda **kw: None, retrieve=lambda **kw: []
         ),
     )
-    with pytest.raises(VetorZeradoError, match="nao foi encontrado"):
+    with pytest.raises(VetorZeradoError, match="pontos amostrados"):
         vs.upsert_chunks(CHUNK)
 
 
@@ -369,3 +369,39 @@ def test_healthcheck_acusa_qdrant_fora(monkeypatch):
 
     monkeypatch.setattr(vector_store, "_client", lambda: SimpleNamespace(get_collections=explode))
     assert vector_store.healthcheck() == "down"
+
+
+def test_upsert_pega_zerado_fora_do_primeiro_ponto(monkeypatch):
+    """Regressao: a versao anterior olhava so `chunks[0]`.
+
+    Uma ingestao de 6.551 chunks saiu inteira zerada e passou por ela. A amostra agora
+    atravessa o lote, e um unico vetor sem norma reprova a ingestao toda.
+    """
+    from types import SimpleNamespace
+
+    from grifo.retrieval import vector_store
+    from grifo.retrieval.vector_store import VetorZeradoError
+
+    bom = SimpleNamespace(vector=[0.6, 0.8])
+    zerado = SimpleNamespace(vector=[0.0, 0.0])
+    monkeypatch.setattr(
+        vector_store,
+        "_embedder",
+        lambda: SimpleNamespace(embed_documents=lambda ts: [[0.6, 0.8]] * len(ts)),
+    )
+    monkeypatch.setattr(vector_store, "ensure_collection", lambda name, dim: None)
+    monkeypatch.setattr(
+        vector_store,
+        "_client",
+        lambda: SimpleNamespace(
+            upsert=lambda **kw: None,
+            # primeiro ponto ok, o ultimo zerado: so pega quem amostra o lote inteiro
+            retrieve=lambda **kw: [bom, bom, zerado],
+        ),
+    )
+    chunks = [
+        {"id": f"a:chunk{i}", "text": "t", "metadata": {"curso": "C", "modulo": "1", "aula": "1"}}
+        for i in range(9)
+    ]
+    with pytest.raises(VetorZeradoError, match="zerado"):
+        vector_store.upsert_chunks(chunks)
