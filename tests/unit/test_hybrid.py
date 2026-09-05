@@ -339,3 +339,33 @@ def test_upsert_falha_se_o_ponto_some_apos_gravar(monkeypatch):
     )
     with pytest.raises(VetorZeradoError, match="nao foi encontrado"):
         vs.upsert_chunks(CHUNK)
+
+
+def test_healthcheck_acusa_colecao_ausente(monkeypatch):
+    """Conectividade nao e saude: sem a colecao, nenhuma pergunta pode ser respondida."""
+    from types import SimpleNamespace
+
+    from grifo.retrieval import vector_store
+
+    def _cliente(existe):
+        return lambda: SimpleNamespace(
+            get_collections=lambda: None, collection_exists=lambda n: existe
+        )
+
+    monkeypatch.setattr(vector_store, "_client", _cliente(True))
+    assert vector_store.healthcheck() is None
+
+    monkeypatch.setattr(vector_store, "_client", _cliente(False))
+    assert vector_store.healthcheck() == "sem indice"
+
+
+def test_healthcheck_acusa_qdrant_fora(monkeypatch):
+    from types import SimpleNamespace
+
+    from grifo.retrieval import vector_store
+
+    def explode():
+        raise ConnectionError("recusada")
+
+    monkeypatch.setattr(vector_store, "_client", lambda: SimpleNamespace(get_collections=explode))
+    assert vector_store.healthcheck() == "down"

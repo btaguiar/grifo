@@ -121,8 +121,16 @@ def ask(payload: AskRequest) -> AskResponse:
 )
 def health() -> HealthResponse:
     """FR-41: o serviço responde, mas se declara degradado sem o índice."""
-    if not vector_store.healthcheck():
-        raise HTTPException(status_code=503, detail={"status": "degraded", "qdrant": "down"})
+    motivo = vector_store.healthcheck()
+    if motivo:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "degraded",
+                "qdrant": motivo,
+                "collection": settings.qdrant_collection,
+            },
+        )
     return HealthResponse(
         status="ok",
         qdrant="up",

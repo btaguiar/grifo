@@ -26,9 +26,12 @@ services:
     env_file: .env
     environment:
       QDRANT_URL: http://qdrant:6333
-    # Com EMBEDDING_PROVIDER=local, LLM ou embeddings rodando na sua maquina ficam em
-    # host.docker.internal -- dentro do container, 127.0.0.1 e o proprio container.
-    # No .env use OPENAI_BASE_URL=http://host.docker.internal:1234/v1 (ver .env.example).
+      # LLM/embeddings na SUA maquina: dentro do container, 127.0.0.1 e o proprio
+      # container. Nao existe valor unico que sirva aos dois lados (host.docker.internal
+      # nao resolve no host), entao o .env guarda o endereco de fora e
+      # OPENAI_BASE_URL_DOCKER, quando definido, vale so aqui dentro. Quem usa provedor
+      # remoto nao define nada e mantem o valor do .env.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL_DOCKER:-${OPENAI_BASE_URL:-}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -68,6 +71,7 @@ services:
     env_file: .env
     environment:
       QDRANT_URL: http://qdrant:6333
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL_DOCKER:-${OPENAI_BASE_URL:-}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

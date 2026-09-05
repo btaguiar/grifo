@@ -94,7 +94,7 @@ def test_ask_falha_do_provedor_500_com_request_id(monkeypatch):
 
 
 def test_health_ok(monkeypatch):
-    monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: True)
+    monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: None)
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
@@ -104,9 +104,25 @@ def test_health_ok(monkeypatch):
 
 def test_health_qdrant_fora_503(monkeypatch):
     """FR-41: Qdrant indisponível → 503."""
-    monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: False)
+    monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: "down")
     r = client.get("/health")
     assert r.status_code == 503
+    assert r.json()["detail"]["qdrant"] == "down"
+
+
+def test_health_sem_indice_503(monkeypatch):
+    """Regressão: o Qdrant no ar com a coleção ausente respondia `ok`.
+
+    E aí todo /ask devolvia 500 com um 404 do Qdrant por baixo. O FR-41 pede que o
+    serviço se declare degradado SEM o índice — não que confirme o índice pela
+    conectividade de quem o hospeda.
+    """
+    monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: "sem indice")
+    r = client.get("/health")
+    assert r.status_code == 503
+    detalhe = r.json()["detail"]
+    assert detalhe["qdrant"] == "sem indice"
+    assert detalhe["collection"]  # qual coleção falta, para o erro ser acionável
 
 
 def test_ingest_sem_token_401():
@@ -207,7 +223,7 @@ def test_startup_sobrevive_ao_qdrant_fora(monkeypatch):
 
     monkeypatch.setattr(api_main.vector_store, "warmup", explode)
     with TestClient(app) as c:
-        monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: True)
+        monkeypatch.setattr(api_main.vector_store, "healthcheck", lambda: None)
         assert c.get("/health").status_code == 200
 
 

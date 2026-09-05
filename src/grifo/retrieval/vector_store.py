@@ -289,13 +289,23 @@ def fetch_all(filters: dict | None = None, collection: str | None = None) -> lis
     return resultados
 
 
-def healthcheck() -> bool:
-    """FR-41: conectividade com o Qdrant."""
+def healthcheck() -> str | None:
+    """FR-41: devolve o motivo da degradacao, ou None quando esta tudo de pe.
+
+    Conectividade nao basta. Medido: com a colecao configurada ausente, o /health
+    respondia `ok` -- porque o Qdrant estava no ar -- e TODO /ask devolvia 500 com o 404
+    do Qdrant por baixo. O FR-41 pede o contrario: "o servico responde, mas se declara
+    degradado sem o indice". Sem o indice ele nao responde nada, e precisa dizer isso
+    antes de receber a pergunta de um aluno.
+    """
     try:
         _client().get_collections()
-        return True
     except Exception:
-        return False
+        return "down"
+    if not _client().collection_exists(settings.qdrant_collection):
+        # Estado normal entre `docker compose up` e `docker compose run ingest`.
+        return "sem indice"
+    return None
 
 
 def warmup() -> None:
