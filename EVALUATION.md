@@ -144,6 +144,12 @@ Reproduzir: `python eval/calibrar_retrieval.py --threshold`. Corpus real, 64 ite
 | 0.55 | 66% | 82% | 94% |
 | 0.60 | 57% | 91% | 85% |
 
+![Calibração do threshold: cobertura e acerto de fonte estáveis até 0.45, enquanto a recusa correta salta de 9% para 55%](docs/calibracao-threshold.png)
+
+Reproduzir o gráfico: `python eval/grafico_calibracao.py`. Ele **lê a tabela acima** em
+vez de repetir os números — gráfico e texto não podem divergir, e recalibrar significa
+reescrever a tabela e regerar, nunca editar os dois à mão.
+
 **0.45 domina 0.35**: mesma cobertura, acerto de fonte igual ou melhor, e a recusa no
 gate de retrieval passa de 9% para 55%. Não é um trade-off — é ganho nos dois eixos, e
 o valor de partida simplesmente estava errado. Acima de 0.50 o recall começa a cair;

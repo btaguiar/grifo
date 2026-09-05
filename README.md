@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/btaguiar/grifo/actions/workflows/ci.yml/badge.svg)](https://github.com/btaguiar/grifo/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
-![Testes](https://img.shields.io/badge/testes-113-green)
+![Testes](https://img.shields.io/badge/testes-118-green)
 
 > **Status:** pipeline completo funcionando e primeira linha de base medida sobre um corpus real de 24 sessões e 6.551 trechos. Falta resolver latência e publicar a demo. Nenhum número aqui é estimativa: ou foi medido, ou está vazio.
 
@@ -60,6 +60,8 @@ aluno sem resposta.
 - O juiz de alucinação sinalizou 2 casos; os dois eram falso positivo, achados só na
   inspeção manual.
 - A citação em 100% é artificial — 80% vieram do modelo, o resto a chain anexou.
+
+![Calibração do threshold: cobertura e acerto de fonte estáveis até 0.45, enquanto a recusa correta salta de 9% para 55%](docs/calibracao-threshold.png)
 
 ## O que a calibração revelou
 
@@ -121,7 +123,7 @@ Desenvolvimento:
 ```bash
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                # 113 testes, sem serviços externos
+pytest                                # 118 testes, sem serviços externos
 pytest -m integration                 # 4 testes, exigem Qdrant no ar
 python eval/calibrar_retrieval.py     # varreduras de calibração
 python eval/run_eval.py               # suite completa de avaliação
