@@ -1,0 +1,38 @@
+{
+  "timestamp": "20260906T140819Z",
+  "commit": "3a622f3",
+  "corpus": "publico (samples/)",
+  "metricas": {
+    "total_itens": 55,
+    "recusa_correta": 1.0,
+    "alucinacao": 0.0,
+    "latency_p95_ms": 3527.0,
+    "taxa_resposta": 0.6,
+    "citacao_em_respondidas": 1.0,
+    "fonte_correta_em_respondidas": 0.9697,
+    "tokens_input_total": 30850,
+    "tokens_output_total": 4358,
+    "retry_rate": 0.0,
+    "ragas": {
+      "llm_context_precision_without_reference": 0.9596,
+      "llm_context_precision_without_reference_n": 33,
+      "faithfulness": 0.8729,
+      "faithfulness_n": 33,
+      "answer_relevancy": 0.8355,
+      "answer_relevancy_n": 33
+    }
+  },
+  "config": {
+    "llm_model": "openai/gpt-4o-mini",
+    "eval_llm_model": "openai/gpt-4o",
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "score_threshold": 0.45,
+    "final_k": 5,
+    "retrieve_k": 20,
+    "rerank_enabled": false,
+    "bm25_rescue_min_idf": 6.0,
+    "golden_set": "golden_set.jsonl",
+    "force_citation": false,
+    "juiz": null
+  }
+}

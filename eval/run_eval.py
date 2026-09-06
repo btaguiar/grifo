@@ -188,6 +188,8 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
     Pelo mesmo motivo, `context_precision` entra na variante **sem referência**, que
     julga os contextos contra a resposta gerada em vez de contra um gabarito.
     """
+    if not settings.ragas_enabled:
+        return None
     if not settings.openai_api_key:
         return None
     try:
@@ -330,6 +332,9 @@ def run() -> dict:
             ),
             "latency_ms": resposta["latency_ms"],
             "tokens": resposta["tokens"],
+            # Re-tentativas de validação do contrato (Fase 2): quantas queries o
+            # modelo devolveu saída que violou o Pydantic ao menos uma vez.
+            "retries": resposta.get("retries", 0),
         }
         registro["fonte_correta"] = (
             fonte_bate(item["expected_source"], resposta["sources"])
@@ -361,6 +366,10 @@ def run() -> dict:
         ),
         "tokens_input_total": sum(i["tokens"]["input"] for i in itens),
         "tokens_output_total": sum(i["tokens"]["output"] for i in itens),
+        # Fase 2: proporção de queries que precisaram de >=1 re-tentativa de
+        # validação do contrato. Denominador = TODAS as queries: recusa sem LLM
+        # entra com 0 — é o custo total de retry do sistema por rodada.
+        "retry_rate": round(sum(1 for i in itens if i.get("retries")) / max(len(itens), 1), 4),
         "ragas": _opcional("RAGAS", _ragas_metricas, itens),
     }
     return {"metricas": metricas, "itens": itens}
@@ -430,6 +439,9 @@ def _salvar(resultado: dict) -> Path:
                     "rerank_enabled": settings.rerank_enabled,
                     "bm25_rescue_min_idf": settings.bm25_rescue_min_idf,
                     "golden_set": settings.golden_set.name,
+                    #: Se a citação foi pós-processada (`_ensure_citation`) nesta
+                    #: rodada — sem isto, rodada A/B da Fase 2 é indistinguível.
+                    "force_citation": settings.force_citation,
                     # Confiabilidade do juiz que produziu esta rodada (plano de
                     # execução, Fase 1): kappa + matriz da calibração de registro.
                     # `null` = sem calibração de registro — a taxa de alucinação

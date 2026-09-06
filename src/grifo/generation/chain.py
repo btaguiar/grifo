@@ -1,4 +1,4 @@
-"""Chain LCEL: pergunta -> retrieval -> prompt -> LLM -> resposta + fontes.
+"""Chain LCEL: pergunta -> retrieval -> prompt -> LLM estruturado -> resposta + fontes.
 
 Requisitos: FR-30 (chain fim a fim), FR-31 (citação garantida pós-geração), FR-32
 (recusa exata), FR-33 (timestamp na fonte), FR-36 (contagem de tokens).
@@ -9,8 +9,14 @@ primeira versao (NFR-2) -- e o numero que vai no post e no EVALUATION.md secao 6
 Quando o retriever devolve vazio (FR-24), a chain nao chama o LLM: responde
 REFUSAL_MESSAGE direto, com found=False, sources=[] e tokens zerados (mas presentes).
 
-`retriever` e `llm` são injetáveis: é assim que os testes unitários exercitam a chain
-sem tocar na OpenAI.
+Desde a Fase 2 do plano de execução, a saída do LLM é um contrato Pydantic
+(`GrifoAnswer`) via instructor, com max_retries=2: validação violada devolve o erro
+ao modelo em vez de a chain consertar a saída por regex. O `_ensure_citation` do
+FR-31 fica no código, atrás de `FORCE_CITATION` (default false) — mesmo padrão do
+reranker: mecanismo medido que ficou explicitamente desligado.
+
+`retriever` e `structured` são injetáveis: é assim que os testes unitários exercitam
+a chain sem tocar na OpenAI.
 """
 
 from __future__ import annotations
@@ -20,26 +26,82 @@ import time
 from collections.abc import Callable
 
 from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda
-from pydantic import SecretStr
 
 from grifo.config import REFUSAL_MESSAGE, settings
 from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT, format_context
+from grifo.generation.schemas import GrifoAnswer, pares_recuperados
 from grifo.retrieval.hybrid import retrieve
 from grifo.retrieval.rerank import rerank
 
 #: Citação bem formada `[Módulo X, Aula Y]` — a garantia executável do FR-31.
+#: Só é usada pelo `_ensure_citation`, que está atrás de FORCE_CITATION.
 _CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
 
+#: O seam estruturado: recebe o prompt formatado, devolve o contrato validado, os
+#: tokens gastos (todas as tentativas) e quantas re-tentativas de validação foram
+#: necessárias. É injetável para os testes unitários.
+StructuredLLM = Callable[[str], tuple[GrifoAnswer, dict[str, int], int]]
 
-def _default_llm() -> Runnable:
-    from langchain_openai import ChatOpenAI
 
-    return ChatOpenAI(
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
-        base_url=settings.openai_base_url or None,
+def _default_structured() -> StructuredLLM:
+    """Cliente instructor sobre a API OpenAI-compatível das settings.
+
+    `max_retries=2` é o retry INSTRUÍDO: validação Pydantic violada devolve a
+    mensagem de erro ao modelo, que corrige a própria saída. Os hooks contam os
+    erros de validação (para o `retry_rate` do eval) e somam os tokens de TODAS as
+    tentativas — tentativa de correção também é gasto (FR-36).
+    """
+    import instructor
+    from instructor.core.hooks import HookName, Hooks
+    from openai import OpenAI
+
+    hooks = Hooks()
+    estado = {"erros_validacao": 0, "tokens_input": 0, "tokens_output": 0}
+
+    def _erro_de_validacao(error: Exception, **_kwargs) -> None:
+        estado["erros_validacao"] += 1
+
+    def _uso_da_tentativa(response) -> None:
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            estado["tokens_input"] += int(getattr(usage, "prompt_tokens", 0) or 0)
+            estado["tokens_output"] += int(getattr(usage, "completion_tokens", 0) or 0)
+
+    hooks.on(HookName.PARSE_ERROR, _erro_de_validacao)
+    hooks.on(HookName.COMPLETION_RESPONSE, _uso_da_tentativa)
+
+    client = instructor.from_openai(
+        OpenAI(
+            api_key=settings.openai_api_key or "nao-configurado",
+            base_url=settings.openai_base_url or None,
+        ),
+        hooks=hooks,
     )
+
+    class _InstructorLLM:
+        """Chamável que carrega o client — exposto para inspeção e teste de config."""
+
+        def __init__(self) -> None:
+            self.client = client
+
+        def __call__(self, prompt: str) -> tuple[GrifoAnswer, dict[str, int], int]:
+            estado.update(erros_validacao=0, tokens_input=0, tokens_output=0)
+            # max_retries é POR CHAMADA: no cliente ele colide com o max_retries
+            # de transporte do SDK OpenAI dentro do handle_kwargs do instructor.
+            resposta, _completamento = client.chat.completions.create_with_completion(
+                model=settings.llm_model,
+                temperature=settings.llm_temperature,
+                messages=[{"role": "user", "content": prompt}],
+                response_model=GrifoAnswer,
+                max_retries=2,
+            )
+            tokens = {
+                "input": estado["tokens_input"],
+                "output": estado["tokens_output"],
+            }
+            return resposta, tokens, estado["erros_validacao"]
+
+    return _InstructorLLM()
 
 
 def _retrieve_state(state: dict) -> dict:
@@ -74,6 +136,7 @@ def _refusal(state: dict) -> dict:
         "sources": [],
         "found": False,
         "contexts": [],
+        "retries": 0,
         "chunks": state.get("chunks", []),
     }
 
@@ -91,77 +154,67 @@ def _sources(chunks: list[dict]) -> list[dict]:
 
 
 def _ensure_citation(answer_text: str, chunks: list[dict]) -> str:
-    """FR-31 como invariante: se o LLM omitiu a citação, anexa a do melhor chunk."""
+    """FR-31 como invariante: se o LLM omitiu a citação, anexa a do melhor chunk.
+
+    Atrás de `FORCE_CITATION` desde a Fase 2: medido na rodada de 2026-08-24, este
+    conserto cobria 9 de 44 respostas (20%) — citação atribuída à força é atribuir
+    fonte a afirmação não fundamentada. Nunca mais é o mecanismo principal.
+    """
     if _CITACAO_RE.search(answer_text):
         return answer_text
     top = chunks[0]["metadata"]
     return f"{answer_text.rstrip()} [Módulo {top['modulo']}, Aula {top['aula']}]"
 
 
-def _normalizar(texto: str) -> str:
-    return " ".join(texto.split()).casefold()
-
-
-_REFUSAL_NORM = _normalizar(REFUSAL_MESSAGE)
-
-
-def _is_refusal(answer_text: str) -> bool:
-    """O próprio LLM também recusa (ADR 002), e essa recusa precisa virar found=False.
-
-    O SCORE_THRESHOLD só pega o caso "nada relevante veio". Este pega o caso
-    "vieram chunks parecidos, mas nenhum responde a pergunta" — que o modelo enxerga
-    melhor que o cosseno. Sem isso a recusa do modelo sai como found=True com uma
-    citação anexada à força, violando o DC-2 e derrubando a taxa de recusa correta.
-    """
-    return _normalizar(answer_text).startswith(_REFUSAL_NORM)
-
-
-def _generate(state: dict, llm: Runnable) -> dict:
+def _generate(state: dict, structured: StructuredLLM) -> dict:
     prompt = ANSWER_SYSTEM_PROMPT.format(
         curso=state["curso"],
         max_words=settings.max_answer_words,
         context=format_context(state["chunks"]),
         question=state["question"],
     )
-    msg = llm.invoke(prompt)
-    usage = getattr(msg, "usage_metadata", None) or {}
-    tokens = {
-        "input": int(usage.get("input_tokens", 0)),
-        "output": int(usage.get("output_tokens", 0)),
-    }
-    conteudo = str(msg.content)
-    if _is_refusal(conteudo):
+    # O validador de SourceRef consulta os pares módulo/aula desta query: citação
+    # de aula não recuperada reprova o contrato e volta ao modelo como erro.
+    with pares_recuperados(state["chunks"]):
+        parsed, tokens, retries = structured(prompt)
+    if not parsed.found:
+        # O validador de GrifoAnswer garante que answer == REFUSAL_MESSAGE aqui.
         # Os tokens foram gastos e continuam contando (FR-36), mas o contrato de
-        # recusa do DC-2 vale: string exata, sem fontes, sem citação anexada.
+        # recusa do DC-2 vale: string exata, sem fontes.
         return {
             "answer": REFUSAL_MESSAGE,
             "sources": [],
             "found": False,
             "contexts": [],
             "tokens": tokens,
+            "retries": retries,
         }
+    answer_text = parsed.answer
+    if settings.force_citation:
+        answer_text = _ensure_citation(answer_text, state["chunks"])
     return {
-        "answer": _ensure_citation(conteudo, state["chunks"]),
+        "answer": answer_text,
         "sources": _sources(state["chunks"]),
         "found": True,
         "contexts": _contexts(state["chunks"]),
         "tokens": tokens,
+        "retries": retries,
     }
 
 
 def build_chain(
-    retriever: Callable[..., dict] | None = None, llm: Runnable | None = None
+    retriever: Callable[..., dict] | None = None, structured: StructuredLLM | None = None
 ) -> Runnable:
     """Monta a chain LCEL: retriever -> branch (vazio ? recusa : geração)."""
     retriever_fn: Callable[..., dict] = retriever or _retrieve_state
-    llm = llm or _default_llm()
+    llm_estruturado: StructuredLLM = structured or _default_structured()
 
     def sem_contexto(state: dict) -> bool:
         return not state.get("chunks")
 
     return RunnableLambda(retriever_fn) | RunnableBranch(
         (sem_contexto, RunnableLambda(_refusal)),
-        RunnableLambda(lambda state: _generate(state, llm)),
+        RunnableLambda(lambda state: _generate(state, llm_estruturado)),
     )
 
 
@@ -177,6 +230,7 @@ def answer(question: str, curso: str, session_id: str | None = None) -> dict:
         "found": bool(resultado.get("found")),
         "latency_ms": latency_ms,
         "tokens": tokens,
-        # Fora do DC-2: so a avaliacao usa. AskResponse ignora chaves extras.
+        # Fora do DC-2: só a avaliação usa. AskResponse ignora chaves extras.
         "contexts": resultado.get("contexts", []),
+        "retries": resultado.get("retries", 0),
     }

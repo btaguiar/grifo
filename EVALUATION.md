@@ -145,6 +145,52 @@ A comparação direta entre eles não é válida.
 
 ---
 
+### 3.4 Contrato de saída Pydantic — 2026-09-06
+
+A borda do LLM foi reescrita (Fase 2 do plano de execução): a saída deixa de ser prosa
+tratada por regex e passa a ser `GrifoAnswer`, validado por Pydantic via instructor
+com retry instruído (`max_retries=2` — erro de validação volta ao modelo). O
+`_ensure_citation` continua no código, desativado por `FORCE_CITATION` (default false).
+Duas rodadas no mesmo setup da 3.3 (`gpt-4o-mini` respondendo, `gpt-4o` julgando,
+corpus público, threshold 0.45):
+
+| Métrica | 3.3 — prosa + regex | A: contrato, force=false | B: contrato, force=true |
+|---|---|---|---|
+| Citação nas respondidas | 1.00 **artificial** (pós-`_ensure_citation`) | **1.00 espontânea** | 1.00 |
+| retry_rate (re-validação do contrato) | — | **0.000** | 0.000 |
+| Fonte correta nas respondidas | 0.97 (32/33) | 0.97 (32/33) | 0.97 (32/33) |
+| Recusa correta | 1.00 | 1.00 | 1.00 |
+| Alucinação (juiz `gpt-4o`) | 0.00 | 0.00 | 0.00 |
+| Faithfulness (RAGAS, n=33) | 0.81 | **0.87** | — (RAGAS desligado) |
+| Latência p95 | **2,58s** | 3,53s | 3,64s |
+| Tokens de entrada por pergunta | 361 | 561 | 561 |
+
+**A citação é 1.00 espontânea, com zero re-tentativas.** Em nenhuma das 33 respostas o
+modelo violou o contrato na primeira saída — o par módulo/aula citado existia nos
+trechos recuperados em todas. O 0.80 espontâneo da 5.5 era do prompt antigo com
+`qwen2.5-7b` local no corpus real; não é comparável, e o número que vale para o
+sistema atual é este. A rodada B confirma que `FORCE_CITATION` não teve o que
+consertar (citação já 1.00 sem ele): a flag fica como rede de segurança declarada,
+não como mecanismo.
+
+**A piora de latência é real e publicada como está.** O caminho estruturado troca a
+chamada de chat simples por tool calling, com o schema do contrato viajando em toda
+requisição: +55% de tokens de entrada por pergunta (361 → 561), e o p95 sai de 2,58s
+para 3,53s — acima da meta de 3s. O ganho é a citação deixar de ser artificial e a
+validação de fonte (par módulo/aula recuperado) passar a existir; o custo é tokens e
+latência. O NFR-1 volta a não atingir no corpus público.
+
+**Faithfulness 0.81 → 0.87** com o mesmo juiz: efeito colateral observado, não meta —
+o prompt que descreve o contrato explícito ("use EXCLUSIVAMENTE os trechos", lista de
+citations) parece ter deixado as respostas mais aderentes. Vereditos por item e
+faithfulness por item desta rodada alimentam a reconciliação da 5.8.
+
+Reproduzir: rodada A e B em `eval/results/metricas_20260906T140819Z_3a622f3.json` e
+`metricas_20260906T141109Z_3a622f3.json` (o bloco `config` distingue as duas pelo
+`force_citation`).
+
+---
+
 ## 4. Calibração de parâmetros
 
 O ponto de partida está em SPEC seção 7. Estes números **não** são para aceitar — são para medir e ajustar. Cada tabela abaixo se preenche com uma varredura sobre o golden set.
@@ -488,6 +534,12 @@ do melhor chunk a uma frase que o modelo não fundamentou é atribuir fonte a um
 afirmação não-fundamentada — o oposto do ADR 002. Decidir se `_ensure_citation` fica.
 Enquanto ficar, é 0.80 que deve ir para o README, não 1.00.
 
+**Resolvido pela Fase 2 (2026-09-06).** O `_ensure_citation` ficou para trás de
+`FORCE_CITATION` (default false) e a citação passou a sair do modelo sob contrato
+Pydantic validado. No corpus público a citação espontânea medida é **1.00 com zero
+retries** (ver 3.4) — o número desta seção permanece como o registro do comportamento
+antigo no corpus real, ainda não re-medido com o contrato.
+
 ---
 
 ### 5.6 O `pip install` matava a busca vetorial, em silêncio (2026-09-02)
@@ -582,9 +634,26 @@ mede uma coisa, e é a discordância que expõe o que cada uma não vê:
 juiz (`alucinou`) e o `ragas_faithfulness` **por item** no JSON completo; a
 reconciliação lista os itens onde os dois discordam — juiz NÃO com faithfulness baixo
 (caso que o juiz próprio deixa passar) e juiz SIM com faithfulness alto (falso
-positivo provável do juiz). A rodada de 2026-09-03 não permite esta tabela: os
-vereditos por item e o faithfulness por item não foram persistidos, só as médias —
-declarado em vez de reconstruído depois.
+positivo provável do juiz).
+
+**Primeira reconciliação (rodada 3.4-A, 2026-09-06).** O juiz `gpt-4o` disse NÃO nos
+33 respondidos — alucinação 0.00 — enquanto o faithfulness médio deu 0.87. A média
+esconde onde o juiz próprio é cego: **5 itens com faithfulness < 0.70 aprovados pelo
+juiz**, todos do mesmo tipo — elaboração inferida, sem fato novo duro:
+
+| ID | faithfulness | Juiz | O que o RAGAS pega e o juiz não pega |
+|---|---|---|---|
+| gs-037 | 0.50 | NÃO | "desvalorização do produto e percepção negativa sobre o preço justo" — consequência inferida, ausente do trecho |
+| gs-010 | 0.60 | NÃO | "os erros se multiplicam, prejudicando a eficiência do processo" |
+| gs-011 | 0.67 | NÃO | "acesso imediato às informações necessárias para correção e otimização" |
+| gs-026 | 0.67 | NÃO | "garantir que os leads avancem de forma adequada" |
+| gs-038 | 0.67 | NÃO | "custos podem aumentar e o valor percebido pelo cliente pode mudar" |
+
+Nenhum caso no sentido inverso (juiz SIM com faithfulness alto): o juiz não sinalizou
+nada nesta rodada. A leitura conjunta: a taxa de alucinação 0.00 está correta **para a
+definição dela** (fato novo inventado), mas não cobre distorção por elaboração — os 5
+casos acima são respostas "ok com ressalva", não invenção. É por isso que as duas
+métricas são publicadas juntas em vez de uma substituir a outra.
 
 **Viés de posição: não se aplica, por desenho.** O `JUDGE_PROMPT` é estritamente
 *single-answer*: audita uma resposta contra o contexto, não compara duas respostas
@@ -618,6 +687,11 @@ público da época (US$ 0,15/1M entrada, US$ 0,60/1M saída), ~US$ 0,0001 por pe
 O juiz `gpt-4o` domina esta conta: são 55 julgamentos + 3 métricas RAGAS sobre 33 itens.
 Cálculo derivado dos `tokens_*_total` dos `metricas_*.json`; um script versionado para
 `custo_usd` acompanha a tabela de preços em `config.py` (Fase 4 do plano).
+
+Rodada do contrato (3.4-A, 2026-09-06): 30.850 de entrada + 4.358 de saída — **US$
+0,0072** na geração, ~US$ 0,0001 por pergunta. Os tokens do JUIZ e do RAGAS não entram
+nestes totais (o contador instrumenta a chain, não o avaliador) — o custo real da
+rodada é maior que o da geração, e a diferença é o preço de medir.
 
 Contador de tokens instrumentado desde o dia 1 (FR-36, NFR-2). Confirmar os preços vigentes na página de pricing da OpenAI antes de publicar qualquer número — eles mudam.
 

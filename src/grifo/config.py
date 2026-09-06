@@ -80,6 +80,13 @@ class Settings(BaseSettings):
 
     # Geração
     max_answer_words: int = 200
+    #: O `_ensure_citation` (FR-31 original) anexava a citação do top chunk quando o
+    #: modelo omitia a própria. Medido na rodada de 2026-08-24 (EVALUATION.md 5.5):
+    #: 9 de 44 respostas (20%) foram consertadas assim, e a citação 1.00 publicada
+    #: era artificial. Com o contrato Pydantic (Fase 2) o modelo passou a devolver
+    #: `citations` validadas; a flag fica DESLIGADA por padrão — ligar é rede de
+    #: segurança explícita, nunca o mecanismo principal. Mesmo padrão do reranker.
+    force_citation: bool = False
 
     # API
     api_host: str = "0.0.0.0"
@@ -100,6 +107,10 @@ class Settings(BaseSettings):
     ragas_max_workers: int = 1
     #: Segundos por job do RAGAS. O default dele é 180, apertado para LLM local.
     ragas_timeout: int = 600
+    #: false = pula as métricas RAGAS (as próprias continuam). Rodada de comparação
+    #: A/B (Fase 2) não precisa pagar RAGAS duas vezes — e RAGAS é o bloco mais
+    #: caro e lento da rodada.
+    ragas_enabled: bool = True
 
     # Analytics
     question_log_path: Path = Path("data/processed/question_log.jsonl")

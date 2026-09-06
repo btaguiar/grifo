@@ -36,15 +36,16 @@ em [EVALUATION.md](EVALUATION.md).
 | Métrica | Denominador | Meta | Corpus real, LLM local | Corpus de exemplo, LLM remoto | Reproduzir |
 |---|---|---|---|---|---|
 | **Taxa de recusa correta** | 11 fora do escopo | > 0.95 | **1.00** (11/11) | **1.00** (11/11) | `python eval/run_eval.py` |
-| **Taxa de alucinação** | respondidas | < 2% | **0.00** (0/44)¹ | **0.00** (0/33) | `python eval/run_eval.py` |
+| **Taxa de alucinação** | respondidas | < 2% | **0.00** (0/44)¹ | **0.00** (0/33)¹ | `python eval/run_eval.py` |
 | **fonte@5** — retrieval puro | 53 em escopo | — | **0.79** | — | `python eval/calibrar_retrieval.py --ablacao` |
 | **Fonte correta nas respondidas** — end-to-end | respondidas | — | **0.82** (36/44) | **0.97** (32/33) | `python eval/run_eval.py` |
-| **Citação espontânea** | respondidas | — | **0.80** (35/44)² | não medida | — (nota ²) |
-| Citação final — pós-processada | respondidas | — | 1.00 (44/44) | 1.00 (33/33) | `python eval/run_eval.py` |
-| Faithfulness (RAGAS) | respondidas | > 0.90 | — | 0.81 — **não atinge** | `python eval/run_eval.py` |
+| **Citação espontânea** | respondidas | — | **0.80** (35/44)² | **1.00** (33/33, contrato)³ | `python eval/run_eval.py` |
+| Citação final | respondidas | — | 1.00 — pós-processada | 1.00 — espontânea³ | `python eval/run_eval.py` |
+| Faithfulness (RAGAS) | respondidas | > 0.90 | — | 0.87 — **não atinge** | `python eval/run_eval.py` |
 | Context Precision (RAGAS) | respondidas | > 0.75 | — | **0.96** | `python eval/run_eval.py` |
-| Answer Relevance (RAGAS) | respondidas | > 0.80 | — | **0.83** | `python eval/run_eval.py` |
-| **Latência p95** | todas as perguntas | < 3s | 19,9s — não atinge | **2,58s** — atinge | `python eval/run_eval.py` |
+| Answer Relevance (RAGAS) | respondidas | > 0.80 | — | **0.84** | `python eval/run_eval.py` |
+| Retry de validação do contrato | todas as perguntas | — | — | **0.000** (55/55 de primeira) | `python eval/run_eval.py` |
+| **Latência p95** | todas as perguntas | < 3s | 19,9s — não atinge | 3,53s — não atinge³ | `python eval/run_eval.py` |
 
 ¹ Verificada à mão: o juiz sinalizou 2 casos, ambos falso positivo (EVALUATION.md 5.4).
 Regra de publicação (plano de execução): a taxa de alucinação só aparece ao lado do
@@ -52,8 +53,12 @@ Regra de publicação (plano de execução): a taxa de alucinação só aparece 
 precisão, recall e kappa, gravados no bloco `config` de cada rodada. Kappa < 0.70:
 taxa não liberada para produção sem revisão manual.
 ² Medição única da rodada de 2026-08-24, contada antes do `_ensure_citation`
-(EVALUATION.md 5.5). Sem comando de reprodução até existir a flag `FORCE_CITATION` —
-publicada com proveniência em vez de omitida.
+(EVALUATION.md 5.5) — prompt antigo, `qwen2.5-7b` local, corpus real.
+³ Rodada do contrato de saída Pydantic (2026-09-06, EVALUATION.md 3.4): a citação
+passou a sair do modelo validada por Pydantic/instructor com retry instruído — 1.00
+espontânea com zero re-validações. O custo do contrato é visível e publicado: o p95
+saiu de 2,58s (prosa, 2026-09-03) para 3,53s, e os tokens de entrada por pergunta
+subiram de 361 para 561.
 
 A segunda coluna é a linha de base sobre o material real (64 perguntas, 20% fora do
 escopo). A terceira é o corpus de exemplo deste repositório (55 perguntas), com
@@ -74,8 +79,10 @@ aluno sem resposta.
   recusa correta sozinha não mostra isso.
 - O juiz de alucinação sinalizou 2 casos; os dois eram falso positivo, achados só na
   inspeção manual.
-- A citação final em 100% é pós-processamento: **80% espontânea** (35/44, medidos antes
-  do `_ensure_citation`), o resto a chain anexou à força — ver a tabela acima.
+- A citação em 100% **era** artificial na rodada do corpus real: 80% espontânea, o
+  resto a chain anexava à força. O contrato Pydantic (2026-09-06) encerrou o
+  pós-processamento no corpus público — citação 1.00 espontânea, zero re-validações
+  (EVALUATION.md 3.4); o corpus real ainda não foi re-medido com o contrato.
 
 ![Calibração do threshold: cobertura e acerto de fonte estáveis até 0.45, enquanto a recusa correta salta de 9% para 55%](docs/calibracao-threshold.png)
 
@@ -176,9 +183,12 @@ Declaradas de propósito, não esquecidas:
 - Contexto de sessão curto, sem memória de conversa longa.
 - Sem streaming de resposta — e com LLM local, ele faz falta.
 - A latência depende inteiramente do modelo, não da arquitetura: o retrieval custa 30ms.
-  Com provedor remoto o p95 é 2,58s e cumpre a meta; com um 7B local, 19,9s.
-- O juiz de alucinação é um modelo 7B calibrado contra 6 casos. Suficiente para não
-  estar obviamente quebrado, insuficiente para publicar a taxa sem revisão manual.
+  Com provedor remoto o p95 era 2,58s (prosa) e passou a 3,53s com o contrato de saída
+  estruturado — acima da meta de 3s, custo publicado (EVALUATION.md 3.4). Com um 7B
+  local, 19,9s.
+- O conjunto de calibração do juiz tinha 6 casos quando a taxa 0.00 foi medida; agora
+  tem 99 (33 positivos), com Kappa de Cohen calculado em `calibrar_juiz.py`. A taxa não
+  é liberada para produção sem kappa >= 0.70 na calibração revisada.
 
 ## Próximos passos
 

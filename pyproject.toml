@@ -39,6 +39,9 @@ dependencies = [
     "uvicorn[standard]>=0.32,<0.33",
     "pydantic>=2.9,<3",
     "pydantic-settings>=2.6,<3",
+    # Contrato de saída do LLM (Fase 2): structured output validado com retry
+    # instruído — o erro do Pydantic volta ao modelo em vez de regex consertar.
+    "instructor>=1.16,<2",
     "streamlit>=1.39,<2",
     # Utilidades
     "python-dotenv>=1.0,<2",

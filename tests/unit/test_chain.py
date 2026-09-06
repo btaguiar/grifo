@@ -1,14 +1,19 @@
-"""FR-30/31/32/33/36: chain LCEL com citação obrigatória, recusa exata e tokens."""
+"""FR-30/31/32/33/36: chain LCEL com contrato estruturado, recusa exata e tokens.
+
+Desde a Fase 2 do plano de execução o LLM é injetável pelo seam `structured`:
+recebe o prompt, devolve (GrifoAnswer, tokens, retries). É com esse seam que os
+testes exercitam a chain sem tocar em API nenhuma.
+"""
 
 import re
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableLambda
+import pytest
 
 import grifo.generation.chain as chain_mod
 from grifo.config import REFUSAL_MESSAGE, settings
 from grifo.generation.chain import answer, build_chain
+from grifo.generation.schemas import GrifoAnswer, SourceRef
 
 CHUNKS = [
     {
@@ -25,21 +30,39 @@ CHUNKS = [
     }
 ]
 
+TOKENS = {"input": 320, "output": 42}
 
-def fake_llm(texto: str):
-    return RunnableLambda(
-        lambda _prompt: AIMessage(
-            content=texto,
-            usage_metadata={"input_tokens": 320, "output_tokens": 42, "total_tokens": 362},
-        )
-    )
+RESP_CITADA = GrifoAnswer(
+    found=True,
+    answer=(
+        "O CAC é o custo total dividido pelos clientes [Módulo 2 - Metricas, Aula 4 - CAC e LTV]."
+    ),
+    citations=[SourceRef(modulo="2 - Metricas", aula="4 - CAC e LTV", localizador="00:22:14")],
+)
+
+
+def fake_structured(resposta: GrifoAnswer, tokens=None, retries=0, espia=None):
+    """Seam estruturado falso: devolve o contrato pronto sem tocar em API."""
+
+    def call(prompt: str):
+        if espia is not None:
+            espia(prompt)
+        return resposta, tokens or TOKENS, retries
+
+    return call
 
 
 def test_sem_contexto_recusa_exata_sem_chamar_llm():
     """FR-32: retriever vazio -> string exata, found=False, sources=[]."""
     chamado = SimpleNamespace(ok=False)
-    llm = RunnableLambda(lambda p: (setattr(chamado, "ok", True), AIMessage("x"))[1])
-    chain = build_chain(retriever=lambda s: {**s, "chunks": []}, llm=llm)
+
+    def espia(_prompt):
+        chamado.ok = True
+
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": []},
+        structured=fake_structured(RESP_CITADA, espia=espia),
+    )
     out = chain.invoke({"question": "receita de bolo", "curso": "C"})
     assert out["answer"] == REFUSAL_MESSAGE
     assert out["found"] is False
@@ -49,26 +72,49 @@ def test_sem_contexto_recusa_exata_sem_chamar_llm():
 
 def test_resposta_com_citacao_fontes_e_tokens():
     """FR-31, FR-33, FR-36."""
-    texto = (
-        "O CAC é o custo total dividido pelos clientes [Módulo 2 - Metricas, Aula 4 - CAC e LTV]."
-    )
     chain = build_chain(
         retriever=lambda s: {**s, "chunks": CHUNKS},
-        llm=fake_llm(texto),
+        structured=fake_structured(RESP_CITADA),
     )
     out = chain.invoke({"question": "como calcular o CAC?", "curso": "C"})
     assert re.search(r"\[Módulo [^\]]+, Aula [^\]]+\]", out["answer"])
     assert out["found"] is True
     assert out["sources"][0]["timestamp"] == "00:22:14"  # FR-33
     assert out["sources"][0]["modulo"] == "2 - Metricas"
-    assert out["tokens"] == {"input": 320, "output": 42}  # FR-36
+    assert out["tokens"] == TOKENS  # FR-36
 
 
-def test_garantia_de_citacao_quando_llm_omite():
-    """FR-31 como invariante: sem citação na saída do LLM, a chain anexa a do top chunk."""
+def test_sem_citacao_no_texto_permanece_sem_por_padrao(monkeypatch):
+    """Fase 2: FORCE_CITATION=false (default) — a chain NÃO conserta a saída.
+
+    O número de citação medido a partir daqui é o espontâneo do modelo; anexar à
+    força era atribuir fonte a afirmação não fundamentada (EVALUATION.md 5.5).
+    """
+    monkeypatch.setattr(settings, "force_citation", False)
+    sem_citacao = GrifoAnswer(
+        found=True,
+        answer="O CAC é custo dividido por clientes.",
+        citations=[SourceRef(modulo="2 - Metricas", aula="4 - CAC e LTV")],
+    )
     chain = build_chain(
         retriever=lambda s: {**s, "chunks": CHUNKS},
-        llm=fake_llm("O CAC é custo dividido por clientes."),
+        structured=fake_structured(sem_citacao),
+    )
+    out = chain.invoke({"question": "cac?", "curso": "C"})
+    assert out["answer"] == "O CAC é custo dividido por clientes."  # intocado
+
+
+def test_force_citation_anexa_quando_ativada(monkeypatch):
+    """FR-31 como opt-in: com FORCE_CITATION=true, a garantia volta a valer."""
+    monkeypatch.setattr(settings, "force_citation", True)
+    sem_citacao = GrifoAnswer(
+        found=True,
+        answer="O CAC é custo dividido por clientes.",
+        citations=[SourceRef(modulo="2 - Metricas", aula="4 - CAC e LTV")],
+    )
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": CHUNKS},
+        structured=fake_structured(sem_citacao),
     )
     out = chain.invoke({"question": "cac?", "curso": "C"})
     assert re.search(r"\[Módulo [^\]]+, Aula [^\]]+\]", out["answer"])
@@ -78,13 +124,13 @@ def test_prompt_do_llm_leva_limite_recusa_e_contexto():
     """FR-35: o limite de palavras e a regra de recusa viajam no prompt final."""
     visto: dict = {}
 
-    def espia(prompt: str) -> AIMessage:
+    def espia(prompt: str):
         visto["prompt"] = prompt
-        return AIMessage(
-            "ok", usage_metadata={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-        )
 
-    chain = build_chain(retriever=lambda s: {**s, "chunks": CHUNKS}, llm=RunnableLambda(espia))
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": CHUNKS},
+        structured=fake_structured(RESP_CITADA, espia=espia),
+    )
     chain.invoke({"question": "como calcular o CAC?", "curso": "Curso Exemplo"})
     p = visto["prompt"]
     assert "200 palavras" in p
@@ -92,6 +138,7 @@ def test_prompt_do_llm_leva_limite_recusa_e_contexto():
     assert "custo total de aquisição" in p  # contexto formatado
     assert "como calcular o CAC?" in p
     assert "Timestamp: 00:22:14" in p  # FR-33: timestamp disponível ao modelo
+    assert "found=false" in p  # o contrato estruturado está descrito no prompt
 
 
 def test_answer_empacota_dc2(monkeypatch):
@@ -104,20 +151,23 @@ def test_answer_empacota_dc2(monkeypatch):
                 "sources": [],
                 "found": True,
                 "tokens": {"input": 10, "output": 2},
+                "retries": 1,
             }
         return {"answer": REFUSAL_MESSAGE, "sources": [], "found": False}
 
-    fake = RunnableLambda(fake_run)
+    fake = chain_mod.RunnableLambda(fake_run)
     monkeypatch.setattr(chain_mod, "build_chain", lambda: fake)
 
     resp = answer("pergunta", "Curso Exemplo")
     assert {"answer", "sources", "found", "latency_ms", "tokens"} <= set(resp)
     assert resp["latency_ms"] >= 0
     assert resp["tokens"] == {"input": 10, "output": 2}
+    assert resp["retries"] == 1
 
     resp_recusa = answer("outra", "Curso Exemplo", session_id="s1")
     assert resp_recusa["found"] is False
     assert resp_recusa["tokens"] == {"input": 0, "output": 0}  # presente e não nulo
+    assert resp_recusa["retries"] == 0
 
 
 def test_settings_plugados_na_chain():
@@ -140,7 +190,7 @@ def test_caminho_default_sem_retriever_injetado(monkeypatch):
     monkeypatch.setattr(chain_mod, "retrieve", fake_retrieve)
     monkeypatch.setattr(chain_mod, "rerank", lambda q, c, k: c[:k])
 
-    chain = build_chain(llm=fake_llm("O CAC e custo por cliente."))
+    chain = build_chain(structured=fake_structured(RESP_CITADA))
     out = chain.invoke({"question": "como calcular o CAC?", "curso": "Curso Exemplo"})
 
     assert out["found"] is True
@@ -150,10 +200,10 @@ def test_caminho_default_sem_retriever_injetado(monkeypatch):
 
 
 def test_answer_ponta_a_ponta_com_defaults(monkeypatch):
-    """FR-30: answer() no caminho real (retriever default), so o LLM e falso."""
+    """FR-30: answer() no caminho real (retriever default), só o LLM é falso."""
     monkeypatch.setattr(chain_mod, "retrieve", lambda q, k, filters=None: CHUNKS)
     monkeypatch.setattr(chain_mod, "rerank", lambda q, c, k: c[:k])
-    monkeypatch.setattr(chain_mod, "_default_llm", lambda: fake_llm("Resposta fundamentada."))
+    monkeypatch.setattr(chain_mod, "_default_structured", lambda: fake_structured(RESP_CITADA))
 
     resp = answer("como calcular o CAC?", "Curso Exemplo")
 
@@ -161,44 +211,37 @@ def test_answer_ponta_a_ponta_com_defaults(monkeypatch):
     assert resp["found"] is True
     assert re.search(r"\[Módulo [^\]]+, Aula [^\]]+\]", resp["answer"])
     assert resp["sources"][0]["timestamp"] == "00:22:14"
-    assert resp["tokens"] == {"input": 320, "output": 42}
+    assert resp["tokens"] == TOKENS
+    assert resp["retries"] == 0
 
 
 def test_recusa_do_llm_vira_found_false():
-    """ADR 002: o modelo tambem recusa, e a recusa dele obedece o contrato DC-2.
+    """ADR 002: o modelo também recusa (found=false), e isso obedece o DC-2.
 
     Caso real: o threshold deixou chunks passarem (parecidos), mas nenhum responde.
-    Antes isso saia como found=True com a citacao do top chunk colada na recusa.
+    A recusa vem pelo contrato — validador exige a string exata, sem citação.
     """
+    recusa = GrifoAnswer(found=False, answer=REFUSAL_MESSAGE)
     chain = build_chain(
         retriever=lambda s: {**s, "chunks": CHUNKS},
-        llm=fake_llm(REFUSAL_MESSAGE),
+        structured=fake_structured(recusa),
     )
     out = chain.invoke({"question": "qual a receita do bolo?", "curso": "C"})
 
-    assert out["answer"] == REFUSAL_MESSAGE  # string exata, sem citacao anexada
+    assert out["answer"] == REFUSAL_MESSAGE  # string exata, sem citação anexada
     assert out["found"] is False
     assert out["sources"] == []
-    assert out["tokens"] == {"input": 320, "output": 42}  # FR-36: tokens gastos contam
+    assert out["tokens"] == TOKENS  # FR-36: tokens gastos contam
 
 
-def test_recusa_do_llm_tolera_espaco_e_caixa():
-    """A deteccao normaliza: o modelo raramente devolve a string byte a byte."""
+def test_retries_de_validacao_viajam_no_resultado():
+    """Fase 2: o contrato pode exigir re-tentativa, e o eval mede isso (retry_rate)."""
     chain = build_chain(
         retriever=lambda s: {**s, "chunks": CHUNKS},
-        llm=fake_llm("  não encontrei isso no material do curso.\n"),
+        structured=fake_structured(RESP_CITADA, retries=2),
     )
-    assert chain.invoke({"question": "x", "curso": "C"})["found"] is False
-
-
-def test_resposta_que_apenas_menciona_a_recusa_nao_e_recusa():
-    """Guarda contra deteccao larga demais: mencionar a frase no meio nao e recusar."""
-    texto = (
-        "O material cobre isso sim. Se não cobrisse, eu diria que não encontrei "
-        "isso no material do curso [Módulo 2 - Metricas, Aula 4 - CAC e LTV]."
-    )
-    chain = build_chain(retriever=lambda s: {**s, "chunks": CHUNKS}, llm=fake_llm(texto))
-    assert chain.invoke({"question": "x", "curso": "C"})["found"] is True
+    out = chain.invoke({"question": "cac?", "curso": "C"})
+    assert out["retries"] == 2
 
 
 def test_contexts_traz_o_texto_recuperado_e_nao_vaza_no_dc2(monkeypatch):
@@ -211,17 +254,32 @@ def test_contexts_traz_o_texto_recuperado_e_nao_vaza_no_dc2(monkeypatch):
 
     monkeypatch.setattr(chain_mod, "retrieve", lambda q, k, filters=None: CHUNKS)
     monkeypatch.setattr(chain_mod, "rerank", lambda q, c, k: c[:k])
-    monkeypatch.setattr(chain_mod, "_default_llm", lambda: fake_llm("Resposta."))
+    monkeypatch.setattr(chain_mod, "_default_structured", lambda: fake_structured(RESP_CITADA))
 
     resp = answer("como calcular o CAC?", "Curso Exemplo")
     assert resp["contexts"] == [CHUNKS[0]["text"]]  # o texto, nao "[Módulo 2, Aula 4]"
 
     dc2 = AskResponse(**resp)
     assert "contexts" not in dc2.model_dump()
+    assert "retries" not in dc2.model_dump()
 
 
 def test_recusa_traz_contexts_vazio(monkeypatch):
     monkeypatch.setattr(chain_mod, "retrieve", lambda q, k, filters=None: [])
     monkeypatch.setattr(chain_mod, "rerank", lambda q, c, k: [])
-    monkeypatch.setattr(chain_mod, "_default_llm", lambda: fake_llm("x"))
+    monkeypatch.setattr(chain_mod, "_default_structured", lambda: fake_structured(RESP_CITADA))
     assert answer("receita de bolo", "Curso Exemplo")["contexts"] == []
+
+
+def test_contrato_rejeitado_nao_tem_caminho_de_contorno():
+    """O seam estruturado é o ÚNICO caminho: exceção do contrato sobe, nada conserta.
+
+    Se o instructor esgotar os retries, a falha precisa estourar — silenciá-la
+    devolveria prosa sem validação, ressuscitando o regex por cima de saída livre.
+    """
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": CHUNKS},
+        structured=lambda p: (_ for _ in ()).throw(ValueError("contrato violado")),
+    )
+    with pytest.raises(ValueError, match="contrato violado"):
+        chain.invoke({"question": "x", "curso": "C"})

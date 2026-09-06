@@ -5,7 +5,7 @@ Pinamos `embedding_provider` em cada teste para não depender do .env da máquin
 """
 
 from grifo.config import settings
-from grifo.generation.chain import _default_llm
+from grifo.generation.chain import _default_structured
 from grifo.retrieval import vector_store
 
 GLM_URL = "https://api.z.ai/api/paas/v4"
@@ -14,15 +14,15 @@ GLM_URL = "https://api.z.ai/api/paas/v4"
 def test_llm_usa_base_url_custom(monkeypatch):
     monkeypatch.setattr(settings, "openai_api_key", "chave-teste")
     monkeypatch.setattr(settings, "openai_base_url", GLM_URL)
-    llm = _default_llm()
-    assert "api.z.ai" in str(llm.openai_api_base)
+    invoca = _default_structured()
+    assert "api.z.ai" in str(invoca.client.client.base_url)
 
 
 def test_llm_sem_base_url_usa_endpoint_padrao(monkeypatch):
     monkeypatch.setattr(settings, "openai_api_key", "chave-teste")
     monkeypatch.setattr(settings, "openai_base_url", "")
-    llm = _default_llm()
-    assert "z.ai" not in str(llm.openai_api_base)
+    invoca = _default_structured()
+    assert "z.ai" not in str(invoca.client.client.base_url)
 
 
 def test_embedder_usa_base_url_custom(monkeypatch):
