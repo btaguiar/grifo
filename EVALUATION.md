@@ -242,13 +242,22 @@ Reproduzir: rodada A e B em `eval/results/metricas_20260906T140819Z_3a622f3.json
 
 ### 3.5 Série temporal (configuração canônica) — 2026-09-06
 
-Três rodadas na configuração congelada da seção 2, mesmo commit do contrato:
+Três rodadas na configuração congelada da seção 2, em dois commits do mesmo dia —
+`3a622f3` (contrato) e `a593e0a` (gabarito de resposta). A configuração de série não
+mudou entre eles: o que entrou foram métricas novas, não parâmetros diferentes.
 
-| Rodada | recusa | alucinação | fonte e2e | citação | cobertura (média) | retry | p95 | custo US$ |
-|---|---|---|---|---|---|---|---|---|
-| 140819Z | 1.00 | 0.00 | 0.97 | 1.00 | 0.95 | 0.000 | 3.527 | 0.0072 |
-| 142856Z | 1.00 | 0.00 | 0.97 | 1.00 | 0.95 | 0.000 | 3.249 | 0.0073 |
-| 190527Z | 1.00 | 0.00 | 0.97 | 1.00 | 0.97 | 0.000 | 3.386 | 0.0073 |
+| Rodada | commit | recusa | alucinação | fonte e2e | citação | cobertura (média) | retry | p95 | custo US$ |
+|---|---|---|---|---|---|---|---|---|---|
+| 140819Z | 3a622f3 | 1.00 | 0.00 | 0.97 | 1.00 | 0.95* | 0.000 | 3.527 | 0.0072* |
+| 142856Z | a593e0a | 1.00 | 0.00 | 0.97 | 1.00 | 0.95 | 0.000 | 3.249 | 0.0073 |
+| 190527Z | a593e0a | 1.00 | 0.00 | 0.97 | 1.00 | 0.97 | 0.000 | 3.386 | 0.0073 |
+
+\* Derivado depois da rodada, não gravado por ela: em `3a622f3` a cobertura de conteúdo
+e o `custo_usd` ainda não existiam. A cobertura saiu do `bruto_*.json` daquela rodada
+(a métrica é determinística sobre resposta e gabarito) e o custo, dos `tokens_*_total`
+com a mesma tabela de preços. As duas células **não** estão no `metricas_*.json`
+correspondente, e por isso o gráfico da série começa a cobertura no segundo ponto —
+número derivado à mão fica marcado como tal em vez de virar dado de série.
 
 Métricas de conteúdo estáveis (fonte e citação idênticas nas três; cobertura varia
 0.95–0.97 — `temperature=0` não é determinismo entre chamadas de API), latência
@@ -756,8 +765,9 @@ Rodada pública (2026-09-03, `gpt-4o-mini` respondendo e `gpt-4o` julgando): 19.
 de entrada + 3.220 de saída em 55 perguntas — **US$ 0,0049** pela rodada inteira ao preço
 público da época (US$ 0,15/1M entrada, US$ 0,60/1M saída), ~US$ 0,0001 por pergunta.
 O juiz `gpt-4o` domina esta conta: são 55 julgamentos + 3 métricas RAGAS sobre 33 itens.
-Cálculo derivado dos `tokens_*_total` dos `metricas_*.json`; um script versionado para
-`custo_usd` acompanha a tabela de preços em `config.py` (Fase 4 do plano).
+Cálculo derivado dos `tokens_*_total` dos `metricas_*.json`. Esta rodada é anterior ao
+campo `custo_usd`, então o número acima foi calculado à mão com a mesma tabela de preços
+que hoje vive em `config.py`; da rodada 3.4-A em diante o valor vem gravado.
 
 Rodada do contrato (3.4-A, 2026-09-06): 30.850 de entrada + 4.358 de saída — **US$
 0,0072** na geração, ~US$ 0,0001 por pergunta. Os tokens do JUIZ e do RAGAS não entram
@@ -807,7 +817,14 @@ página valha mais do que a medição que a sustenta.
   atrás de `vars.ENABLE_EVAL` (seção 2), com gate de regressão pronto. Ligá-lo hoje
   reprova no p95 (contrato em ~3,5s contra teto de 3s) — estado registrado, não
   silenciado.
-- **O juiz de alucinação tem conjunto de calibração pequeno demais.** 6 casos; ele
-  errou nos 2 únicos que sinalizou na rodada da 3.1 (ver 5.4). A taxa 0.00 publicada
-  foi **verificada à mão**, não liberada pelo juiz. Ampliar a calibração e reportar o
-  Kappa de Cohen é o item de maior peso do plano de melhorias.
+- **O kappa do juiz ainda não existe, e a taxa de alucinação depende disso.** O
+  conjunto de calibração foi de 6 para 99 casos (66 negativos / 33 positivos), mas
+  **93 deles estão marcados `"rascunho": true`** — rótulo proposto, não revisado — e o
+  `calibrar_juiz.py` os exclui da conta de propósito. Na prática o kappa hoje sairia
+  sobre os mesmos 6 casos de sempre, e nenhuma rodada gravou bloco `juiz` (todas com
+  `"juiz": null`). O que existe é a máquina: matriz de confusão, precisão, recall,
+  taxa de falso positivo e kappa de Cohen, com o piso de 0.70 e o registro em
+  `eval/results/calibracao_juiz.json` que acompanha cada rodada. O que falta é a
+  revisão humana dos 93 rascunhos — trabalho de rotulagem, não de código. Enquanto
+  isso, a taxa 0.00 continua **verificada à mão** (ver 5.4), não liberada pelo juiz, e
+  a reconciliação da 5.8 é a evidência mais forte disponível sobre o que ele não vê.
