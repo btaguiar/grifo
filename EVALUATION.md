@@ -80,9 +80,14 @@ Uma recusa é correta quando a resposta é exatamente a string de recusa e `foun
 
 **Taxa de alucinação** = respostas com ao menos uma afirmação não sustentada pelos chunks recuperados ÷ total de respostas com `found: true`.
 Medida por LLM-as-judge sobre a resposta e os chunks recuperados (o **texto**, não a
-etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl`, 6 casos
-rotulados à mão; rode `python eval/calibrar_juiz.py` para reproduzir. Ver 5.4 — o juiz
-ainda produz falso positivo em dado real, então o número exige inspeção manual.
+etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl`; rode
+`python eval/calibrar_juiz.py` para reproduzir a calibração — matriz de confusão,
+precisão, recall, taxa de falso positivo e **Kappa de Cohen**, gravados em
+`eval/results/calibracao_juiz.json` e carregados no bloco `config` de cada
+`metricas_*.json`. Ver 5.4 — o juiz ainda produzia falso positivo em dado real com o
+conjunto de 6 casos; a regra de publicação é: **a taxa de alucinação nunca aparece sem
+o kappa do juiz ao lado**, e kappa < 0.70 significa taxa não liberada para produção
+sem revisão manual.
 
 **fonte@5 (retrieval)** = itens em escopo cujo `expected_source` apareceu no top-5 do retrieval ÷ total de itens em escopo.
 Sem LLM no caminho — é a métrica que isola o retriever. Reproduzir:
@@ -556,6 +561,37 @@ depois se avaliar contra ele.
 é instável demais para sustentar qualquer um desses números. Medido, o mesmo item
 respondido numa rodada foi recusado na seguinte, com os mesmos dados e `temperature=0`.
 Foi o que motivou a rodada remota da 3.3.
+
+---
+
+### 5.8 Juiz próprio × faithfulness do RAGAS — reconciliação item a item
+
+Duas métricas de coisas próximas, e a mais permissiva era a publicada: o juiz próprio
+deu 0.00 na rodada da 3.3 enquanto o `faithfulness` do RAGAS deu 0.81 sobre os mesmos
+33 itens. A divergência documentada vale mais que a convergência forçada — cada uma
+mede uma coisa, e é a discordância que expõe o que cada uma não vê:
+
+- o **juiz próprio** só acusa **fato novo** (número, data, nome, benchmark, regra
+  ausente); reformulação fiel passa. Um modelo que comprime e perde um qualificador no
+  caminho não é pego por ele.
+- o **faithfulness** decompõe a resposta em afirmações e checa cada uma contra o
+  contexto — pega distorção sutil, mas também penaliza parafraseamento agressivo que
+  não inventou nada.
+
+**Método.** A partir da Fase 1 do plano de execução, cada rodada grava o veredito do
+juiz (`alucinou`) e o `ragas_faithfulness` **por item** no JSON completo; a
+reconciliação lista os itens onde os dois discordam — juiz NÃO com faithfulness baixo
+(caso que o juiz próprio deixa passar) e juiz SIM com faithfulness alto (falso
+positivo provável do juiz). A rodada de 2026-09-03 não permite esta tabela: os
+vereditos por item e o faithfulness por item não foram persistidos, só as médias —
+declarado em vez de reconstruído depois.
+
+**Viés de posição: não se aplica, por desenho.** O `JUDGE_PROMPT` é estritamente
+*single-answer*: audita uma resposta contra o contexto, não compara duas respostas
+lado a lado, então não existe ordem a inverter. Se o julgamento um dia passar a ser
+comparativo (ex.: preferência entre respostas de dois modelos), a mitigação obrigatória
+é julgar duas vezes com a ordem invertida e só contar veredito estável — registrada
+aqui para não ser esquecida na hora.
 
 ---
 

@@ -17,6 +17,7 @@ Se o prazo apertar, corte o reranking e o BM25 antes de cortar ESTE arquivo.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -140,7 +141,12 @@ def _llm_do_eval():
 
 
 def _judge_alucinacao(itens: list[dict]) -> float | None:
-    """LLM-as-judge: afirmação não sustentada pelos chunks recuperados (amostra calibrada à mão)."""
+    """LLM-as-judge: afirmação não sustentada pelos chunks recuperados (amostra calibrada à mão).
+
+    Anota `alucinou` em cada item respondido — o veredito por item é o que permite
+    reconciliar o juiz com o faithfulness do RAG (EVALUATION.md 5.8); a taxa sozinha
+    esconde onde os dois discordam.
+    """
     if not settings.openai_api_key:
         return None
     try:
@@ -157,8 +163,8 @@ def _judge_alucinacao(itens: list[dict]) -> float | None:
             veredito = llm.invoke(prompt).content.strip().upper()
         except Exception:
             return None
-        if veredito.startswith("SIM"):
-            alucinados += 1
+        item["alucinou"] = veredito.startswith("SIM")
+        alucinados += item["alucinou"]
     return alucinados / len(respondidos)
 
 
@@ -240,6 +246,14 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
             validos = df[coluna].dropna()
             saida[coluna] = round(float(validos.mean()), 4) if len(validos) else None
             saida[f"{coluna}_n"] = len(validos)
+        # Faithfulness POR ITEM (EVALUATION.md 5.8): a média esconde onde o juiz
+        # próprio e o RAGAS discordam — a reconciliação item a item é o que
+        # transforma duas métricas próximas em informação sobre cada uma. As linhas
+        # do dataframe seguem a ordem dos itens respondidos que entraram no Dataset.
+        respondidos = [i for i in itens if i["found"]]
+        if "faithfulness" in df.columns and len(df) == len(respondidos):
+            for item, valor in zip(respondidos, df["faithfulness"], strict=False):
+                item["ragas_faithfulness"] = None if valor != valor else round(float(valor), 4)
         return saida
     except Exception as exc:
         print(f"aviso: RAGAS falhou ({exc}); continuando com as métricas próprias")
@@ -266,6 +280,32 @@ def _opcional(rotulo: str, fn, *args):
     except Exception as exc:
         print(f"aviso: {rotulo} falhou ({type(exc).__name__}: {exc}); seguindo sem ela")
         return None
+
+
+def _juiz_de_registro() -> dict | None:
+    """A calibração de registro (`calibracao_juiz.json`, gerada por `calibrar_juiz.py`).
+
+    Toda rodada carrega a confiabilidade do juiz que a produziu: sem isto, um kappa
+    medido num prompt antigo seria lido como se valesse para o atual. Se o hash do
+    prompt calibrado divergir do `JUDGE_PROMPT` em uso, o bloco ganha a flag
+    `prompt_divergente_do_calibrado` — recalibrar é a saída, não ignorar.
+    """
+    caminho = RESULTADOS / "calibracao_juiz.json"
+    if not caminho.exists():
+        return None
+    try:
+        dados = json.loads(caminho.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    juiz = dados.get("juiz")
+    if not juiz:
+        return None
+    if juiz.get("prompt_sha256") != hashlib.sha256(JUDGE_PROMPT.encode("utf-8")).hexdigest():
+        juiz["prompt_divergente_do_calibrado"] = True
+        juiz["modelo_calibrado"] = juiz.get("modelo")
+        juiz["modelo"] = settings.eval_llm_model or settings.llm_model
+        print("aviso: o JUDGE_PROMPT em uso diverge do calibrado — rode calibrar_juiz.py")
+    return juiz
 
 
 def run() -> dict:
@@ -390,6 +430,11 @@ def _salvar(resultado: dict) -> Path:
                     "rerank_enabled": settings.rerank_enabled,
                     "bm25_rescue_min_idf": settings.bm25_rescue_min_idf,
                     "golden_set": settings.golden_set.name,
+                    # Confiabilidade do juiz que produziu esta rodada (plano de
+                    # execução, Fase 1): kappa + matriz da calibração de registro.
+                    # `null` = sem calibração de registro — a taxa de alucinação
+                    # desta rodada sai sem lastro de confiabilidade.
+                    "juiz": _opcional("calibração do juiz", _juiz_de_registro),
                 },
             },
             ensure_ascii=False,

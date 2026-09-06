@@ -85,6 +85,12 @@ src = ["src", "tests", "eval"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Literais de prosa do gerador de rascunhos: os casos de calibração são textos
+# corridos por questões de revisabilidade -- quebrá-los em concatenação implícita
+# piora a leitura do que está sendo rotulado.
+"eval/gerar_rascunhos_calibracao.py" = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # `pytest` puro roda so o que nao precisa de servico externo -- e o que o README

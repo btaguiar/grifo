@@ -47,7 +47,10 @@ em [EVALUATION.md](EVALUATION.md).
 | **Latência p95** | todas as perguntas | < 3s | 19,9s — não atinge | **2,58s** — atinge | `python eval/run_eval.py` |
 
 ¹ Verificada à mão: o juiz sinalizou 2 casos, ambos falso positivo (EVALUATION.md 5.4).
-A calibração dele tem 6 casos — pouco, e está declarado como limitação.
+Regra de publicação (plano de execução): a taxa de alucinação só aparece ao lado do
+**Kappa de Cohen** do juiz — `python eval/calibrar_juiz.py` gera matriz de confusão,
+precisão, recall e kappa, gravados no bloco `config` de cada rodada. Kappa < 0.70:
+taxa não liberada para produção sem revisão manual.
 ² Medição única da rodada de 2026-08-24, contada antes do `_ensure_citation`
 (EVALUATION.md 5.5). Sem comando de reprodução até existir a flag `FORCE_CITATION` —
 publicada com proveniência em vez de omitida.
