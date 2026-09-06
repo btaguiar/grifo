@@ -1,4 +1,4 @@
-﻿# Grifo
+# Grifo
 
 **Assistente de dÃºvidas para cursos online. Responde sÃ³ com o material oficial, cita mÃ³dulo, aula e o minuto do vÃ­deo â€” e recusa quando a resposta nÃ£o estÃ¡ lÃ¡.**
 
