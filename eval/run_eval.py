@@ -39,6 +39,7 @@ from grifo.config import (  # noqa: E402
     custo_por_tokens,
     settings,
 )
+from grifo.generation.prompts import JUDGE_PROMPT  # noqa: E402
 
 #: Configurável por GOLDEN_SET (.env ou variável de ambiente): o corpus real usa
 #: eval/golden_set.local.jsonl, que não é versionado.
@@ -141,35 +142,10 @@ def cobertura_conteudo(itens: list[dict]) -> dict | None:
     }
 
 
-#: Prompt do juiz de alucinacao. CALIBRADO contra eval/judge_calibration.jsonl.
-#:
-#: A versao anterior perguntava "contem ALGUMA afirmacao nao sustentada?" e reprovava
-#: parafrase fiel. Num RAG quase toda resposta e reformulacao, entao aquilo inflou a
-#: taxa medida para 79,5%. Esta versao separa "reformular" de "inventar fato novo".
-#:
-#: Acuracia no conjunto de calibracao com qwen2.5-7b: 6/6 (rode
-#: `python eval/calibrar_juiz.py` para reproduzir). Sao apenas 6 casos feitos a mao:
-#: isso mostra que o juiz nao esta obviamente quebrado no eixo parafrase-vs-invencao,
-#: nao que ele seja confiavel. Amplie o conjunto e rejulgue com um modelo maior antes
-#: de publicar a taxa.
-JUDGE_PROMPT = """Você audita se uma resposta inventou informação. Responda apenas SIM ou NÃO.
-
-TRECHOS DO MATERIAL:
-{c}
-
-PERGUNTA DO ALUNO:
-{q}
-
-RESPOSTA A AUDITAR:
-{a}
-
-Responda SIM apenas se a resposta afirmar algum FATO NOVO que não está nos trechos:
-número, data, nome de empresa ou pessoa, benchmark, regra ou recomendação ausente.
-Responda NÃO se a resposta apenas reformula, resume, parafraseia, reordena ou explica
-com outras palavras o que está nos trechos. Reformular NÃO é inventar.
-Ignore as marcações de citação entre colchetes.
-
-SIM ou NÃO:"""
+#: O prompt do juiz vive em `src/grifo/generation/prompts/judge.txt` (Fase 5) e é
+#: importado lá de cima — o SHA-256 dele acompanha o bloco `config` de cada rodada.
+#: Calibrado contra eval/judge_calibration.jsonl; a versao anterior reprovava
+#: parafrase fiel e inflou a taxa medida para 79,5% no corpus real.
 
 
 def _llm_do_eval():
@@ -469,6 +445,16 @@ def _eh_config_de_serie() -> bool:
     )
 
 
+def _hashes_dos_prompts() -> dict[str, str]:
+    """SHA-256 dos prompts versionados — a assinatura que explica os números."""
+    from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT
+
+    return {
+        "answer_system": hashlib.sha256(ANSWER_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        "judge": hashlib.sha256(JUDGE_PROMPT.encode("utf-8")).hexdigest(),
+    }
+
+
 def _salvar(resultado: dict) -> Path:
     """Grava dois arquivos: o completo (local) e o resumo de metricas (versionavel).
 
@@ -531,6 +517,10 @@ def _salvar(resultado: dict) -> Path:
                     #: Se a citação foi pós-processada (`_ensure_citation`) nesta
                     #: rodada — sem isto, rodada A/B da Fase 2 é indistinguível.
                     "force_citation": settings.force_citation,
+                    # Hashes dos prompts versionados (Fase 5): dois metricas com
+                    # números diferentes sempre têm como ser explicados por
+                    # diferença em config — inclusive a vírgula de prompt.
+                    "prompt_sha256": _hashes_dos_prompts(),
                     # Confiabilidade do juiz que produziu esta rodada (plano de
                     # execução, Fase 1): kappa + matriz da calibração de registro.
                     # `null` = sem calibração de registro — a taxa de alucinação

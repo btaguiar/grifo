@@ -34,6 +34,10 @@
     "bm25_rescue_min_idf": 6.0,
     "golden_set": "golden_set.jsonl",
     "force_citation": false,
-    "juiz": null
+    "juiz": null,
+    "prompt_sha256": {
+      "answer_system": "d211c605f0657713291bb24aae428f7c6553feb4d0705fda432ba22dc81698b2",
+      "judge": "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6"
+    }
   }
 }

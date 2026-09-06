@@ -24,7 +24,13 @@ A maioria dos projetos RAG de portfolio não tem avaliação — mostram uma dem
 
 **Execução.** `python eval/run_eval.py` — roda o pipeline completo sobre o golden set, calcula as métricas RAGAS e as duas métricas próprias, e grava um JSON com timestamp e hash do commit em `eval/results/`.
 
-**Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`. Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
+**Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`.
+Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
+Os prompts são arquivos versionados (`src/grifo/generation/prompts/*.txt`) e o SHA-256
+de cada um acompanha o bloco `config` dos `metricas_*.json`: dois resultados com
+números diferentes sempre têm como ser explicados por diferença em `config` —
+incluindo a vírgula de prompt. Um teste unitário trava o hash de referência: mudar
+prompt sem atualizar o hash (decisão explícita) reprova o build.
 
 **Cadência.** O job está escrito em `.github/workflows/ci.yml`, atrás da variável de
 repositório `ENABLE_EVAL` — hoje **desligada**. Ligar: `gh variable set ENABLE_EVAL

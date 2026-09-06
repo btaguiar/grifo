@@ -78,7 +78,7 @@ grifo-ingest = "grifo.ingest.pipeline:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-grifo = ["py.typed"]
+grifo = ["py.typed", "generation/prompts/*.txt"]
 
 [tool.ruff]
 line-length = 100
