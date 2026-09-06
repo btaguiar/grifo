@@ -26,7 +26,31 @@ A maioria dos projetos RAG de portfolio não tem avaliação — mostram uma dem
 
 **Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`. Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
 
-**Cadência.** O job está escrito em `.github/workflows/ci.yml`, atrás da variável de repositório `ENABLE_EVAL` — hoje **desligada**, então o eval não roda a cada push e a frase "reprova o build" é o alvo, não o estado atual. Ligar exige uma configuração canônica congelada para que as rodadas formem série (ver seção 7).
+**Cadência.** O job está escrito em `.github/workflows/ci.yml`, atrás da variável de
+repositório `ENABLE_EVAL` — hoje **desligada**. Ligar: `gh variable set ENABLE_EVAL
+--body true` (exige o secret `OPENAI_API_KEY` com chave da OpenRouter). O job roda na
+configuração de série abaixo e o `eval/gate_regressao.py` reprova o PR se houver
+regressão. Estado atual conhecido: com o contrato Pydantic o p95 anda em ~3,3–3,5s, e
+o teto de 3s do NFR-1 reprova — ligar o job hoje é CI vermelho até a latência ser
+resolvida (streaming ou prompt mais magro); decisão registrada, não surpresa.
+
+**Configuração de série (congelada).** Uma rodada só entra na série temporal com
+`serie: true` — gravado automaticamente quando a configuração é exatamente esta:
+
+| Peça | Valor congelado |
+|---|---|
+| Corpus / golden set | `samples/` + `golden_set.jsonl` (55 itens) |
+| Respondedor | `openai/gpt-4o-mini` via OpenRouter |
+| Juiz | `openai/gpt-4o` |
+| `SCORE_THRESHOLD` / `FINAL_K` | 0.45 / 5 |
+| Reranker / `FORCE_CITATION` | off / off |
+
+Qualquer peça fora disso grava `serie: false`: números comparáveis entre si ou nada —
+é o que as duas rodadas antigas (corpus real com qwen local; corpus público pré-contrato)
+não podiam fazer entre elas. O gate de regressão compara contra a última rodada da
+série: reprova se recusa cair >5pp, alucinação subir >2pp, ou p95 passar de 3000ms
+(absoluto, NFR-1). Gráfico: `python eval/serie_temporal.py` (lê os `metricas_*.json`
+com `serie: true`, gera `docs/serie-temporal.png`).
 
 ---
 
@@ -207,6 +231,28 @@ faithfulness por item desta rodada alimentam a reconciliação da 5.8.
 Reproduzir: rodada A e B em `eval/results/metricas_20260906T140819Z_3a622f3.json` e
 `metricas_20260906T141109Z_3a622f3.json` (o bloco `config` distingue as duas pelo
 `force_citation`).
+
+---
+
+### 3.5 Série temporal (configuração canônica) — 2026-09-06
+
+Três rodadas na configuração congelada da seção 2, mesmo commit do contrato:
+
+| Rodada | recusa | alucinação | fonte e2e | citação | cobertura (média) | retry | p95 | custo US$ |
+|---|---|---|---|---|---|---|---|---|
+| 140819Z | 1.00 | 0.00 | 0.97 | 1.00 | 0.95 | 0.000 | 3.527 | 0.0072 |
+| 142856Z | 1.00 | 0.00 | 0.97 | 1.00 | 0.95 | 0.000 | 3.249 | 0.0073 |
+| 190527Z | 1.00 | 0.00 | 0.97 | 1.00 | 0.97 | 0.000 | 3.386 | 0.0073 |
+
+Métricas de conteúdo estáveis (fonte e citação idênticas nas três; cobertura varia
+0.95–0.97 — `temperature=0` não é determinismo entre chamadas de API), latência
+oscilando 3,2–3,5s sempre acima do teto de 3s. O gráfico da série é gerado dos dados:
+
+![Série temporal do eval na configuração canônica](docs/serie-temporal.png)
+
+Reproduzir: `python eval/serie_temporal.py` — lê só os `metricas_*.json` com
+`serie: true`. O gate contra a última rodada: `python eval/gate_regressao.py` — hoje
+reprova no p95 (3386ms >= 3000ms), que é o estado real do NFR-1 com o contrato.
 
 ---
 
@@ -712,6 +758,12 @@ Rodada do contrato (3.4-A, 2026-09-06): 30.850 de entrada + 4.358 de saída — 
 nestes totais (o contador instrumenta a chain, não o avaliador) — o custo real da
 rodada é maior que o da geração, e a diferença é o preço de medir.
 
+Desde a Fase 4 o custo é calculado, não transcrito: campo `custo_usd` nos
+`metricas_*.json`, derivado dos `tokens_*_total` e da tabela `PRECO_POR_1M_TOKENS`
+em `config.py` (preços públicos conferidos em 2026-09-06 — atualizar a data ao
+atualizar preços). Modelo fora da tabela grava `null`: preço não confirmado não vira
+número.
+
 Contador de tokens instrumentado desde o dia 1 (FR-36, NFR-2). Confirmar os preços vigentes na página de pricing da OpenAI antes de publicar qualquer número — eles mudam.
 
 ---
@@ -746,7 +798,9 @@ página valha mais do que a medição que a sustenta.
   tabela deste documento se compara apenas consigo mesma; série temporal exige a
   configuração canônica congelada da seção 2.
 - **O job de eval está desligado no CI.** Implementado em `.github/workflows/ci.yml`
-  atrás de `vars.ENABLE_EVAL` (seção 2). Até ligar, toda rodada é disparada à mão.
+  atrás de `vars.ENABLE_EVAL` (seção 2), com gate de regressão pronto. Ligá-lo hoje
+  reprova no p95 (contrato em ~3,5s contra teto de 3s) — estado registrado, não
+  silenciado.
 - **O juiz de alucinação tem conjunto de calibração pequeno demais.** 6 casos; ele
   errou nos 2 únicos que sinalizou na rodada da 3.1 (ver 5.4). A taxa 0.00 publicada
   foi **verificada à mão**, não liberada pelo juiz. Ampliar a calibração e reportar o

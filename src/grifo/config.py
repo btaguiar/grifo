@@ -16,6 +16,41 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: Texto exato da recusa. Contrato do ADR 002 — não altere sem atualizar os testes.
 REFUSAL_MESSAGE = "Não encontrei isso no material do curso."
 
+# ── Configuração canônica da série temporal (plano de execução, Fase 4) ──────────
+# As duas rodadas versionadas antes da série usavam corpora e provedores diferentes:
+# são dois pontos que não formam série nenhuma. Rodada só entra na série com
+# `serie: true` se rodar EXATAMENTE nesta configuração — mudar qualquer peça é outra
+# medição, não um próximo ponto. Documentada no EVALUATION.md seção 2.
+SERIE_LLM_MODEL = "openai/gpt-4o-mini"
+SERIE_EVAL_LLM_MODEL = "openai/gpt-4o"
+SERIE_SCORE_THRESHOLD = 0.45
+SERIE_FINAL_K = 5
+SERIE_GOLDEN_SET = "golden_set.jsonl"
+
+#: Preço público por 1M tokens (entrada, saída) em US$, conferidos em 2026-09-06 em
+#: openai.com/api/pricing e openrouter.ai/models. Preço muda: ao atualizar, atualize
+#: a data aqui e o §6 do EVALUATION. Modelo fora da tabela → custo None: preço não
+#: confirmado não vira número publicado.
+PRECO_POR_1M_TOKENS: dict[str, tuple[float, float]] = {
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o": (2.50, 10.00),
+    "openai/gpt-4o-mini": (0.15, 0.60),
+    "openai/gpt-4o": (2.50, 10.00),
+}
+
+
+def custo_por_tokens(modelo: str, tokens_entrada: int, tokens_saida: int) -> float | None:
+    """Custo em US$ a partir dos tokens medidos e do preço público do modelo.
+
+    None quando o modelo não está na tabela — estimar com preço de outro modelo é
+    inventar número, e o critério do repositório é publicar ou declarar vazio.
+    """
+    preco = PRECO_POR_1M_TOKENS.get(modelo)
+    if preco is None:
+        return None
+    entrada, saida = preco
+    return round(tokens_entrada / 1e6 * entrada + tokens_saida / 1e6 * saida, 6)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

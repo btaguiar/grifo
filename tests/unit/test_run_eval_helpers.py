@@ -199,3 +199,44 @@ def test_resumo_versionado_recusa_NaN(tmp_path, monkeypatch):
     monkeypatch.setattr(run_eval.settings, "golden_set", Path("eval/golden_set.jsonl"))
     with pytest.raises(ValueError):
         run_eval._salvar({"metricas": {"faithfulness": float("nan")}})
+
+
+def test_resumo_marca_serie_somente_na_config_canonica(tmp_path, monkeypatch):
+    """Fase 4: rodada fora da configuração congelada sai com serie: false.
+
+    Sem a marca, a rodada com gpt-4o (juiz mais caro) seria lida como próximo ponto
+    da série produzida com gpt-4o-mini — comparação inválida sem ninguém ver.
+    """
+    import json
+
+    from eval import run_eval
+
+    from grifo.config import (
+        SERIE_LLM_MODEL,
+        SERIE_SCORE_THRESHOLD,
+    )
+
+    monkeypatch.setattr(run_eval, "RESULTADOS", tmp_path)
+    monkeypatch.setattr(run_eval.settings, "golden_set", Path("eval/golden_set.jsonl"))
+    monkeypatch.setattr(run_eval.settings, "curso_nome", "Escola Secreta")
+
+    def _serie(**overrides):
+        base = {
+            "llm_model": SERIE_LLM_MODEL,
+            "eval_llm_model": "openai/gpt-4o",
+            "score_threshold": SERIE_SCORE_THRESHOLD,
+            "final_k": 5,
+            "rerank_enabled": False,
+            "force_citation": False,
+        }
+        base.update(overrides)
+        for campo, valor in base.items():
+            monkeypatch.setattr(run_eval.settings, campo, valor)
+        run_eval._salvar({"metricas": {"total_itens": 1}})
+        resumo = json.loads(next(tmp_path.glob("metricas_*.json")).read_text(encoding="utf-8"))
+        return resumo["serie"]
+
+    assert _serie() is True
+    assert _serie(llm_model="openai/gpt-4o") is False  # trocou o modelo respondedor
+    assert _serie(force_citation=True) is False  # pós-processamento ligado
+    assert _serie(score_threshold=0.50) is False  # threshold fora do congelado

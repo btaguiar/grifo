@@ -29,7 +29,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from grifo.config import REFUSAL_MESSAGE, settings  # noqa: E402
+from grifo.config import (  # noqa: E402
+    REFUSAL_MESSAGE,
+    SERIE_EVAL_LLM_MODEL,
+    SERIE_FINAL_K,
+    SERIE_GOLDEN_SET,
+    SERIE_LLM_MODEL,
+    SERIE_SCORE_THRESHOLD,
+    custo_por_tokens,
+    settings,
+)
 
 #: Configurável por GOLDEN_SET (.env ou variável de ambiente): o corpus real usa
 #: eval/golden_set.local.jsonl, que não é versionado.
@@ -413,6 +422,14 @@ def run() -> dict:
         "cobertura_conteudo": cobertura_conteudo(itens),
         "tokens_input_total": sum(i["tokens"]["input"] for i in itens),
         "tokens_output_total": sum(i["tokens"]["output"] for i in itens),
+        # Custo da GERAÇÃO pelos tokens medidos e preço público (Fase 4). None =
+        # modelo fora da tabela de preços: não se publica custo estimado. Os tokens
+        # do juiz/RAGAS não entram nos totais — ver EVALUATION.md seção 6.
+        "custo_usd": custo_por_tokens(
+            settings.llm_model,
+            sum(i["tokens"]["input"] for i in itens),
+            sum(i["tokens"]["output"] for i in itens),
+        ),
         # Fase 2: proporção de queries que precisaram de >=1 re-tentativa de
         # validação do contrato. Denominador = TODAS as queries: recusa sem LLM
         # entra com 0 — é o custo total de retry do sistema por rodada.
@@ -431,6 +448,24 @@ def _salvar_bruto(itens: list[dict]) -> None:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     (RESULTADOS / f"bruto_{stamp}_{_commit_hash()}.json").write_text(
         json.dumps(itens, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def _eh_config_de_serie() -> bool:
+    """A rodada atual roda na configuração canônica congelada da série?
+
+    Qualquer peça fora do congelado (modelo, threshold, reranker, golden set,
+    force_citation) faz a rodada sair com `serie: false` — números comparáveis entre
+    si ou nada. É a mesma regra que impede as duas rodadas antigas de formarem série.
+    """
+    return (
+        settings.llm_model == SERIE_LLM_MODEL
+        and (settings.eval_llm_model or settings.llm_model) == SERIE_EVAL_LLM_MODEL
+        and settings.score_threshold == SERIE_SCORE_THRESHOLD
+        and settings.final_k == SERIE_FINAL_K
+        and not settings.rerank_enabled
+        and not settings.force_citation
+        and settings.golden_set.name == SERIE_GOLDEN_SET
     )
 
 
@@ -455,7 +490,14 @@ def _salvar(resultado: dict) -> Path:
         if settings.golden_set.name.endswith(".local.jsonl")
         else "publico (samples/)"
     )
-    cabecalho_publico = {"timestamp": stamp, "commit": commit, "corpus": corpus}
+    cabecalho_publico = {
+        "timestamp": stamp,
+        "commit": commit,
+        "corpus": corpus,
+        #: A rodada entra na série temporal só na configuração canônica (Fase 4).
+        #: False = comparável apenas consigo mesma — não some com as da série.
+        "serie": _eh_config_de_serie(),
+    }
 
     caminho = RESULTADOS / f"eval_{stamp}_{commit}.json"
     caminho.write_text(

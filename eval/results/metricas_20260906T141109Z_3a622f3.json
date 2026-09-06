@@ -2,6 +2,7 @@
   "timestamp": "20260906T141109Z",
   "commit": "3a622f3",
   "corpus": "publico (samples/)",
+  "serie": false,
   "metricas": {
     "total_itens": 55,
     "recusa_correta": 1.0,
