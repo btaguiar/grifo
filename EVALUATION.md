@@ -26,7 +26,7 @@ A maioria dos projetos RAG de portfolio não tem avaliação — mostram uma dem
 
 **Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`. Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
 
-**Cadência.** Roda no CI a cada push. Regressão em qualquer métrica abaixo da meta reprova o build.
+**Cadência.** O job está escrito em `.github/workflows/ci.yml`, atrás da variável de repositório `ENABLE_EVAL` — hoje **desligada**, então o eval não roda a cada push e a frase "reprova o build" é o alvo, não o estado atual. Ligar exige uma configuração canônica congelada para que as rodadas formem série (ver seção 7).
 
 ---
 
@@ -50,12 +50,20 @@ Resultado bruto: `eval/results/eval_20260824T184248Z_bb43a87.json`.
 
 Complementares, fora da tabela da SPEC mas necessárias para ler as de cima:
 
-| Métrica | Medido | Leitura |
-|---|---|---|
-| Taxa de resposta | 0.69 (44/64) | 20 recusas: 11 corretas + **9 falsas** (ver 5.3) |
-| Fonte correta nas respondidas | 0.82 (36/44) | o `expected_source` apareceu nas fontes |
-| Citação nas respondidas | 1.00 | **artificial** — 0.80 espontâneo (ver 5.5) |
-| Tokens totais | 85.500 entrada / 11.429 saída | 1.374 / 220 por resposta |
+| Métrica | Denominador | Medido | Leitura |
+|---|---|---|---|
+| Taxa de resposta | 64 itens | 0.69 (44/64) | 20 recusas: 11 corretas + **9 falsas** (ver 5.3) |
+| fonte@5 (retrieval) | 53 itens em escopo | **0.79** | só retrieval, sem LLM — ver 4.4, configuração recomendada |
+| Fonte correta nas respondidas (end-to-end) | 44 respondidas | **0.82** (36/44) | o `expected_source` apareceu nas fontes da resposta final |
+| Citação espontânea | 44 respondidas | **0.80** (35/44) | citação que veio do modelo, medida antes do `_ensure_citation` (ver 5.5) |
+| Citação final | 44 respondidas | 1.00 (44/44) | **pós-processada** — `_ensure_citation` anexou as 9 que faltavam |
+| Tokens totais | — | 85.500 entrada / 11.429 saída | 1.374 / 220 por resposta |
+
+`fonte@5` e "fonte correta nas respondidas" são métricas **diferentes** com denominadores
+diferentes: a primeira é retrieval puro sobre todo o escopo (53), a segunda é end-to-end
+só sobre o que o sistema respondeu (44). Publicar as duas no mesmo rótulo — como o README
+fazia — infla a leitura: a taxa de resposta de 0.69 faz o denominador end-to-end esconder
+justamente as perguntas que o retrieval não alcançou.
 
 **A recusa em 100% é o resultado central, e o mecanismo importa.** Com threshold em
 0.35 o gate de retrieval sozinho barra apenas 1 das 11 perguntas fora de escopo
@@ -76,6 +84,15 @@ etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl
 rotulados à mão; rode `python eval/calibrar_juiz.py` para reproduzir. Ver 5.4 — o juiz
 ainda produz falso positivo em dado real, então o número exige inspeção manual.
 
+**fonte@5 (retrieval)** = itens em escopo cujo `expected_source` apareceu no top-5 do retrieval ÷ total de itens em escopo.
+Sem LLM no caminho — é a métrica que isola o retriever. Reproduzir:
+`python eval/calibrar_retrieval.py --ablacao` (linha "+ resgate léxico", com os defaults
+atuais thr=0.45 e reranker off).
+
+**Fonte correta nas respondidas (end-to-end)** = respostas cujo `expected_source` apareceu entre as fontes retornadas ÷ itens com `found: true`.
+É a métrica da experiência do aluno, mas o denominador exclui as recusas — ler sempre ao
+lado da taxa de resposta. Reproduzir: `python eval/run_eval.py`.
+
 ---
 
 ### 3.3 Corpus público com provedor remoto — 2026-09-03
@@ -95,8 +112,10 @@ julgando** — modelos diferentes, pelo motivo da 5.7.
 | **Latência p95** | < 3s | **2,58s** | **atinge** |
 
 Complementares: taxa de resposta 0.60 (33/55), fonte correta nas respondidas **0.97**
-(32/33), citação 1.00, 601 tokens de entrada por resposta. As três métricas RAGAS têm
-`n=33` — todos os itens respondidos entraram, nenhum job falhou.
+(32/33), citação final 1.00 (pós-`_ensure_citation` — a **espontânea não foi medida**
+nesta rodada), 601 tokens de entrada por resposta. As três métricas RAGAS têm
+`n=33` — todos os itens respondidos entraram, nenhum job falhou. `fonte@5` de retrieval
+não foi medida neste corpus: com 22 chunks, o número diria pouco.
 
 **A latência atinge a meta, e isso reposiciona o NFR-1.** O projeto vinha registrando
 "falha por 6x" a partir de 19,9s medidos com um 7B local. Com provedor remoto o p95 cai
@@ -557,4 +576,43 @@ a ser necessária para publicar ou para usar provedor remoto.
 Se migrar para API paga, os números acima dão a conta: 1.374 tokens de entrada por
 pergunta, 1,24M para reindexar o corpus. Confirme os preços vigentes antes de orçar.
 
+Rodada pública (2026-09-03, `gpt-4o-mini` respondendo e `gpt-4o` julgando): 19.834 tokens
+de entrada + 3.220 de saída em 55 perguntas — **US$ 0,0049** pela rodada inteira ao preço
+público da época (US$ 0,15/1M entrada, US$ 0,60/1M saída), ~US$ 0,0001 por pergunta.
+O juiz `gpt-4o` domina esta conta: são 55 julgamentos + 3 métricas RAGAS sobre 33 itens.
+Cálculo derivado dos `tokens_*_total` dos `metricas_*.json`; um script versionado para
+`custo_usd` acompanha a tabela de preços em `config.py` (Fase 4 do plano).
+
 Contador de tokens instrumentado desde o dia 1 (FR-36, NFR-2). Confirmar os preços vigentes na página de pricing da OpenAI antes de publicar qualquer número — eles mudam.
+
+---
+
+## 7. Limitações conhecidas
+
+O que estes números **não** cobrem. Declarado aqui para que nenhuma leitura desta
+página valha mais do que a medição que a sustenta.
+
+- **Sem tracing nem observabilidade de produção.** Nada de LangSmith ou OpenTelemetry:
+  as medições são de avaliação offline, em rodadas. Não existe traçado de requisição
+  real, e a latência medida é a do harness de eval, não a de um aluno às 23h. É o
+  débito mais estrutural — e depende de tráfego real que o projeto não tem.
+- **O `question_log` não tem tráfego real.** São 7 linhas de smoke test, todas da
+  pergunta fora de escopo do bolo de cenoura. Ele grava pergunta, `found`, latência e
+  tokens — mas **não** grava resposta nem chunks recuperados. Não serve de base para
+  golden set e nenhuma métrica aqui sai dele.
+- **Não existe gabarito de resposta.** O DC-3 guarda `expected_source` e
+  `expected_answer_contains`, mas nenhum gabarito de resposta completa: o eval sabe
+  dizer se a *aula* está certa, não se a *resposta* está certa. É também o que trava o
+  context recall do RAGAS (ver 5.7). Medir isso exige escrever respostas de referência
+  à mão — trabalho real, ainda não pago.
+- **As duas rodadas versionadas são incomparáveis entre si.** Corpus real (64 itens,
+  6.551 chunks, `qwen2.5-7b` local) contra corpus público (55 itens, 22 chunks,
+  `gpt-4o-mini`/`gpt-4o` remotos): corpora, provedores e tamanhos diferentes. Cada
+  tabela deste documento se compara apenas consigo mesma; série temporal exige a
+  configuração canônica congelada da seção 2.
+- **O job de eval está desligado no CI.** Implementado em `.github/workflows/ci.yml`
+  atrás de `vars.ENABLE_EVAL` (seção 2). Até ligar, toda rodada é disparada à mão.
+- **O juiz de alucinação tem conjunto de calibração pequeno demais.** 6 casos; ele
+  errou nos 2 únicos que sinalizou na rodada da 3.1 (ver 5.4). A taxa 0.00 publicada
+  foi **verificada à mão**, não liberada pelo juiz. Ampliar a calibração e reportar o
+  Kappa de Cohen é o item de maior peso do plano de melhorias.

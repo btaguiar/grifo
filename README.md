@@ -33,21 +33,32 @@ cenoura?"* devolve a recusa. As duas respostas estão certas.
 Dois corpora, dois setups, nenhuma estimativa. Metodologia, calibração e análise de erro
 em [EVALUATION.md](EVALUATION.md).
 
-| Métrica | Meta | Corpus real, LLM local | Corpus de exemplo, LLM remoto |
-|---|---|---|---|
-| **Taxa de recusa correta** | > 0.95 | **1.00** (11/11) | **1.00** |
-| **Taxa de alucinação** | < 2% | **0.00** (verificado à mão) | **0.00** |
-| Acerto de fonte | — | 0.79 | **0.97** |
-| Faithfulness (RAGAS) | > 0.90 | — | 0.81 — **não atinge** |
-| Context Precision (RAGAS) | > 0.75 | — | **0.96** |
-| Answer Relevance (RAGAS) | > 0.80 | — | **0.83** |
-| Latência p95 | < 3s | 19,9s — não atinge | **2,58s** — atinge |
+| Métrica | Denominador | Meta | Corpus real, LLM local | Corpus de exemplo, LLM remoto | Reproduzir |
+|---|---|---|---|---|---|
+| **Taxa de recusa correta** | 11 fora do escopo | > 0.95 | **1.00** (11/11) | **1.00** (11/11) | `python eval/run_eval.py` |
+| **Taxa de alucinação** | respondidas | < 2% | **0.00** (0/44)¹ | **0.00** (0/33) | `python eval/run_eval.py` |
+| **fonte@5** — retrieval puro | 53 em escopo | — | **0.79** | — | `python eval/calibrar_retrieval.py --ablacao` |
+| **Fonte correta nas respondidas** — end-to-end | respondidas | — | **0.82** (36/44) | **0.97** (32/33) | `python eval/run_eval.py` |
+| **Citação espontânea** | respondidas | — | **0.80** (35/44)² | não medida | — (nota ²) |
+| Citação final — pós-processada | respondidas | — | 1.00 (44/44) | 1.00 (33/33) | `python eval/run_eval.py` |
+| Faithfulness (RAGAS) | respondidas | > 0.90 | — | 0.81 — **não atinge** | `python eval/run_eval.py` |
+| Context Precision (RAGAS) | respondidas | > 0.75 | — | **0.96** | `python eval/run_eval.py` |
+| Answer Relevance (RAGAS) | respondidas | > 0.80 | — | **0.83** | `python eval/run_eval.py` |
+| **Latência p95** | todas as perguntas | < 3s | 19,9s — não atinge | **2,58s** — atinge | `python eval/run_eval.py` |
+
+¹ Verificada à mão: o juiz sinalizou 2 casos, ambos falso positivo (EVALUATION.md 5.4).
+A calibração dele tem 6 casos — pouco, e está declarado como limitação.
+² Medição única da rodada de 2026-08-24, contada antes do `_ensure_citation`
+(EVALUATION.md 5.5). Sem comando de reprodução até existir a flag `FORCE_CITATION` —
+publicada com proveniência em vez de omitida.
 
 A segunda coluna é a linha de base sobre o material real (64 perguntas, 20% fora do
 escopo). A terceira é o corpus de exemplo deste repositório (55 perguntas), com
 `gpt-4o-mini` respondendo e **`gpt-4o` julgando** — modelos separados de propósito, para
 o avaliador não ser o avaliado. As colunas **não são comparáveis entre si**: corpora de
-tamanhos muito diferentes.
+tamanhos muito diferentes. "Acerto de fonte" virou **duas métricas** com denominadores
+explícitos: `fonte@5` isola o retriever sem LLM; a end-to-end mede a resposta final, mas
+só sobre o que foi respondido — denominador que esconde as recusas.
 
 As duas primeiras são métricas próprias, não do RAGAS. São as que importam num contexto
 educacional: um aluno que recebe informação errada com confiança está pior do que um
@@ -55,18 +66,23 @@ aluno sem resposta.
 
 **Três ressalvas que valem mais que os números**, e estão detalhadas no EVALUATION.md:
 
-- 9 perguntas dentro do escopo foram recusadas indevidamente (17%). É o custo da regra
-  de recusa, e a métrica de recusa correta sozinha não mostra isso.
+- 9 perguntas dentro do escopo foram recusadas indevidamente (17%, derivado da taxa de
+  resposta 0.69 nos `metricas_*.json`). É o custo da regra de recusa, e a métrica de
+  recusa correta sozinha não mostra isso.
 - O juiz de alucinação sinalizou 2 casos; os dois eram falso positivo, achados só na
   inspeção manual.
-- A citação em 100% é artificial — 80% vieram do modelo, o resto a chain anexou.
+- A citação final em 100% é pós-processamento: **80% espontânea** (35/44, medidos antes
+  do `_ensure_citation`), o resto a chain anexou à força — ver a tabela acima.
 
 ![Calibração do threshold: cobertura e acerto de fonte estáveis até 0.45, enquanto a recusa correta salta de 9% para 55%](docs/calibracao-threshold.png)
 
 ## O que a calibração revelou
 
 O projeto começou com os parâmetros sugeridos num documento de planejamento. Medir
-mudou três deles, e as três mudanças estão em [EVALUATION.md](EVALUATION.md) seção 4:
+mudou três deles, e as três mudanças estão em [EVALUATION.md](EVALUATION.md) seção 4,
+com os comandos que geram cada tabela: `python eval/calibrar_retrieval.py --threshold`
+para o limiar de corte, `--ablacao` para o reranker e o BM25 — só retrieval, sem LLM
+no caminho (~30ms por consulta, rodável à vontade):
 
 **O limiar de corte estava errado.** 0.35 deixava passar 10 de 11 perguntas fora do
 escopo. Em 0.45 a recusa sobe para 55% sem perder cobertura nenhuma — ganho nos dois
@@ -114,9 +130,12 @@ Pergunte *"Como calcular o CAC?"* e você recebe a resposta com a aula citada. P
 *"Qual a receita do bolo de cenoura?"* e recebe a recusa — que é o comportamento correto.
 
 A primeira build baixa PyTorch e leva alguns minutos. A ingestão roda dentro do
-container: você não precisa de Python na máquina. Custo de rodar assim: frações de
-centavo para indexar, ~US$ 0,00002 por pergunta. Para custo zero e nada saindo da
-máquina, use o setup local do `.env.example`.
+container: você não precisa de Python na máquina. Custo de rodar assim, sobre o corpus
+de exemplo: **US$ 0,0049 pela rodada de avaliação inteira** — 19.834 tokens de entrada
++ 3.220 de saída medidos em 55 perguntas, ao preço público do `gpt-4o-mini`
+(US$ 0,15/1M entrada, US$ 0,60/1M saída), ~US$ 0,0001 por pergunta. Cálculo e ressalvas
+no [EVALUATION.md §6](EVALUATION.md). Para custo zero e nada saindo da máquina, use o
+setup local do `.env.example`.
 
 Desenvolvimento:
 
@@ -180,9 +199,10 @@ parece boa, é a que mostra o custo da própria regra — e essa é a que falta 
 verificada à mão; publicar esse número sem revisão manual exigiria um juiz melhor e um
 conjunto de calibração maior.
 
-**RAGAS de fato instalado.** Quatro métricas da SPEC continuam como "não medida". Elas
-não substituem as duas métricas próprias — que são as que importam num contexto
-educacional — mas são a linguagem comum para comparar com outros sistemas RAG.
+**Context recall do RAGAS — o que falta.** Três das quatro métricas da SPEC já rodam
+(EVALUATION.md 3.3). A quarta, context recall, esbarra no desenho do golden set: ela
+exige respostas de referência escritas à mão, que não existem — e fabricá-las por
+aproximação seria avaliar contra um gabarito inventado.
 
 ### O que eu faria diferente
 
