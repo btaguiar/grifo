@@ -98,6 +98,16 @@ atuais thr=0.45 e reranker off).
 É a métrica da experiência do aluno, mas o denominador exclui as recusas — ler sempre ao
 lado da taxa de resposta. Reproduzir: `python eval/run_eval.py`.
 
+**Cobertura de conteúdo** = média, por item respondido, da fração dos termos de
+`expected_answer_contains` presentes na resposta (normalizando caixa e acento); e a
+proporção de itens com cobertura total.
+O `expected_answer_contains` era trabalho rotulado à mão sem consumidor nenhum — o
+eval sabia se a *aula* estava certa, não se a *resposta* estava. Denominador =
+respondidas dentro do escopo com gabarito: recusa já paga na taxa de resposta.
+Limiar do EVAL_STRICT (0.90) calibrado da primeira rodada medida (0.9545, 2026-09-06,
+n=33) — não a priori — com folga para o ruído conhecido de paráfrase por sinônimo.
+Reproduzir: `python eval/run_eval.py`.
+
 ---
 
 ### 3.3 Corpus público com provedor remoto — 2026-09-03
@@ -162,8 +172,17 @@ corpus público, threshold 0.45):
 | Recusa correta | 1.00 | 1.00 | 1.00 |
 | Alucinação (juiz `gpt-4o`) | 0.00 | 0.00 | 0.00 |
 | Faithfulness (RAGAS, n=33) | 0.81 | **0.87** | — (RAGAS desligado) |
+| Cobertura de conteúdo (média / total) | — | **0.95** / 0.94 (n=33) | idem |
 | Latência p95 | **2,58s** | 3,53s | 3,64s |
 | Tokens de entrada por pergunta | 361 | 561 | 561 |
+
+A cobertura de conteúdo foi medida sobre as respostas já gravadas da rodada A (a
+métrica é determinística sobre a resposta e o gabarito — a primeira rodada com ela no
+`metricas_*.json` sai na próxima execução). Os 2 itens sem cobertura total dizem o que
+a métrica existe para dizer: **gs-013** (cobertura 0) responde a definição de ICP
+sem os termos do gabarito ("renovam", "critérios") — resposta mais magra do que a
+aula pede; **gs-028** (0.5) perde "gasto"/"composto" para sinônimos ("paga",
+"cíclico") — conteúdo certo, termo não, o ruído que justifica o limiar ter folga.
 
 **A citação é 1.00 espontânea, com zero re-tentativas.** Em nenhuma das 33 respostas o
 modelo violou o contrato na primeira saída — o par módulo/aula citado existia nos
@@ -710,11 +729,17 @@ página valha mais do que a medição que a sustenta.
   pergunta fora de escopo do bolo de cenoura. Ele grava pergunta, `found`, latência e
   tokens — mas **não** grava resposta nem chunks recuperados. Não serve de base para
   golden set e nenhuma métrica aqui sai dele.
-- **Não existe gabarito de resposta.** O DC-3 guarda `expected_source` e
-  `expected_answer_contains`, mas nenhum gabarito de resposta completa: o eval sabe
-  dizer se a *aula* está certa, não se a *resposta* está certa. É também o que trava o
-  context recall do RAGAS (ver 5.7). Medir isso exige escrever respostas de referência
-  à mão — trabalho real, ainda não pago.
+- **Não existe gabarito de resposta COMPLETA — e a decisão foi não fabricar.** O DC-3
+  guarda `expected_source` (consumido por fonte@5 e fonte end-to-end) e
+  `expected_answer_contains` (consumido pela cobertura de conteúdo desde a Fase 3);
+  nenhum item ficou sem consumidor. Um campo `reference` — resposta de referência
+  inteira por item, que destravaria o context recall do RAGAS — exigiria escrever 55
+  respostas à mão (e 64 no corpus real). **Decisão: não adicionar agora.** Duas
+  razões: (1) derivar a referência das próprias respostas do sistema seria avaliar o
+  sistema contra si mesmo; (2) o orçamento de rotulagem manual do projeto está
+  comprometido com a calibração do juiz (Fase 1), que tem prioridade — um juiz
+  calibrado informa mais que um context recall. A linha segue declarada como não
+  medida (ver 5.7).
 - **As duas rodadas versionadas são incomparáveis entre si.** Corpus real (64 itens,
   6.551 chunks, `qwen2.5-7b` local) contra corpus público (55 itens, 22 chunks,
   `gpt-4o-mini`/`gpt-4o` remotos): corpora, provedores e tamanhos diferentes. Cada

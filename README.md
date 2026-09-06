@@ -39,6 +39,7 @@ em [EVALUATION.md](EVALUATION.md).
 | **Taxa de alucinação** | respondidas | < 2% | **0.00** (0/44)¹ | **0.00** (0/33)¹ | `python eval/run_eval.py` |
 | **fonte@5** — retrieval puro | 53 em escopo | — | **0.79** | — | `python eval/calibrar_retrieval.py --ablacao` |
 | **Fonte correta nas respondidas** — end-to-end | respondidas | — | **0.82** (36/44) | **0.97** (32/33) | `python eval/run_eval.py` |
+| **Cobertura de conteúdo** (média / cobertura total) | respondidas com gabarito | — | — | **0.95** / 0.94 (n=33) | `python eval/run_eval.py` |
 | **Citação espontânea** | respondidas | — | **0.80** (35/44)² | **1.00** (33/33, contrato)³ | `python eval/run_eval.py` |
 | Citação final | respondidas | — | 1.00 — pós-processada | 1.00 — espontânea³ | `python eval/run_eval.py` |
 | Faithfulness (RAGAS) | respondidas | > 0.90 | — | 0.87 — **não atinge** | `python eval/run_eval.py` |

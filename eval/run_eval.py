@@ -22,6 +22,7 @@ import json
 import re
 import subprocess
 import sys
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -40,6 +41,11 @@ _CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
 META_RECUSA_CORRETA = 0.95
 META_ALUCINACAO = 0.02
 META_LATENCIA_P95_MS = 3000
+#: Calibrado da PRIMEIRA rodada medida com a métrica (contrato, 2026-09-06:
+#: média 0.9545 em n=33), não a priori — com ~5pp de folga para o ruído conhecido:
+#: paráfrase por sinônimo perde termo do gabarito sem errar conteúdo (gs-028 perde
+#: "gasto"/"composto" para "paga"/"cíclico"). Recalibrar aqui ao redefinir o gabarito.
+META_COBERTURA_MEDIA = 0.90
 
 
 def carregar_golden_set() -> list[dict]:
@@ -86,6 +92,44 @@ def fonte_bate(esperada: dict, fontes: list[dict]) -> bool:
         and numero(f.get("aula", "")) == esperada["aula"]
         for f in fontes
     )
+
+
+def normalizar_busca(texto: str) -> str:
+    """Casefold sem acento: "Aquisição" casa com "aquisicao".
+
+    O gabarito `expected_answer_contains` foi rotulado à mão e o modelo parafraseia —
+    sem normalização, "número de clientes" não casa "Numero de clientes".
+    """
+    decomposto = unicodedata.normalize("NFD", texto)
+    sem_acento = "".join(c for c in decomposto if unicodedata.category(c) != "Mn")
+    return sem_acento.casefold()
+
+
+def cobertura_conteudo(itens: list[dict]) -> dict | None:
+    """Gabarito de resposta: fração dos termos de `expected_answer_contains` na resposta.
+
+    Denominador = respondidas dentro do escopo COM gabarito (recusas ficam fora —
+    quem não respondeu já aparece na taxa de resposta; contar aqui seria cobrar duas
+    vezes o mesmo erro). Devolve a média por item e a proporção de itens com
+    cobertura TOTAL (todos os termos presentes) — a segunda é mais dura e é ela que
+    encontra a resposta "certa por cima": aula certa, conteúdo pela metade.
+    """
+    alvo = [
+        i for i in itens if i["should_answer"] and i["found"] and i.get("expected_answer_contains")
+    ]
+    if not alvo:
+        return None
+    por_item: list[float] = []
+    for i in alvo:
+        resposta = normalizar_busca(i["answer"])
+        termos = i["expected_answer_contains"]
+        acertos = sum(1 for t in termos if normalizar_busca(t) in resposta)
+        por_item.append(acertos / len(termos))
+    return {
+        "media": round(sum(por_item) / len(por_item), 4),
+        "total_em_itens": round(sum(1 for c in por_item if c == 1.0) / len(por_item), 4),
+        "n": len(por_item),
+    }
 
 
 #: Prompt do juiz de alucinacao. CALIBRADO contra eval/judge_calibration.jsonl.
@@ -364,6 +408,9 @@ def run() -> dict:
             if respondidos
             else None
         ),
+        # Gabarito de resposta (Fase 3): o expected_answer_contains era trabalho
+        # rotulado sem consumidor — agora sustenta a métrica de cobertura.
+        "cobertura_conteudo": cobertura_conteudo(itens),
         "tokens_input_total": sum(i["tokens"]["input"] for i in itens),
         "tokens_output_total": sum(i["tokens"]["output"] for i in itens),
         # Fase 2: proporção de queries que precisaram de >=1 re-tentativa de
@@ -479,6 +526,9 @@ def main() -> int:
         falhas.append(f"alucinacao {m['alucinacao']:.3f} >= {META_ALUCINACAO}")
     if m["latency_p95_ms"] >= META_LATENCIA_P95_MS:
         falhas.append(f"latency_p95_ms {m['latency_p95_ms']} >= {META_LATENCIA_P95_MS}")
+    cobertura = m.get("cobertura_conteudo")
+    if cobertura is not None and cobertura["media"] < META_COBERTURA_MEDIA:
+        falhas.append(f"cobertura_conteudo {cobertura['media']:.3f} < {META_COBERTURA_MEDIA}")
     if falhas:
         print("REPROVADO: " + "; ".join(falhas))
         return 1
