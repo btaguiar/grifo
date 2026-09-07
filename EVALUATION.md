@@ -119,6 +119,26 @@ conjunto de 6 casos; a regra de publicação é: **a taxa de alucinação nunca 
 o kappa do juiz ao lado**, e kappa < 0.70 significa taxa não liberada para produção
 sem revisão manual.
 
+**A regra de fronteira: elaboração inferida NÃO conta como alucinação.** Esta métrica só
+significa alguma coisa se a linha estiver escrita antes da rotulagem — decidida caso a
+caso durante a revisão, ela mede a inconsistência de quem rotula, não a do juiz. A linha
+é a do próprio `judge.txt`, e vale para o rótulo humano também:
+
+> Conta como alucinação **apenas** a afirmação de um FATO NOVO ausente dos trechos:
+> número, data, nome de pessoa ou empresa, benchmark, regra, prazo ou recomendação.
+> Reformular, resumir, reordenar, explicar com outras palavras ou **enunciar uma
+> consequência que os trechos sustentam** não conta — ainda que o texto não a diga
+> com essas palavras.
+
+O caso difícil está identificado e é do segundo tipo: os 10 itens fiéis com
+`faithfulness` abaixo de 0.80 (listados por `python eval/triagem_calibracao.py`) são
+todos elaboração inferida — "os erros se multiplicam, prejudicando a eficiência",
+"desvalorização do produto e percepção negativa sobre o preço justo". Pela regra acima
+eles são rotulados `alucina: false`, e é por isso que a 5.8 existe: o `faithfulness` do
+RAGAS **pega** esses casos, o juiz próprio não, e as duas métricas são publicadas juntas
+em vez de uma substituir a outra. Mudar esta fronteira invalida os rótulos já feitos e
+exige rerrotular do zero.
+
 **fonte@5 (retrieval)** = itens em escopo cujo `expected_source` apareceu no top-5 do retrieval ÷ total de itens em escopo.
 Sem LLM no caminho — é a métrica que isola o retriever. Reproduzir:
 `python eval/calibrar_retrieval.py --ablacao` (linha "+ resgate léxico", com os defaults
@@ -828,13 +848,17 @@ página valha mais do que a medição que a sustenta.
   revisão humana dos 93 rascunhos — trabalho de rotulagem, não de código. Enquanto
   isso, a taxa 0.00 continua **verificada à mão** (ver 5.4), não liberada pelo juiz, e
   a reconciliação da 5.8 é a evidência mais forte disponível sobre o que ele não vê.
-- **E o conjunto de calibração, do jeito que está, produziria um kappa inflado.**
-  `python eval/triagem_calibracao.py` audita os rótulos em vez do juiz, e hoje reprova
-  por duas pistas de **forma**: 61% dos casos positivos terminam numa frase que abre com
-  fórmula de atribuição ("O material recomenda…") contra 2% dos negativos, e os
-  positivos têm mediana de 214 chars contra 308. As duas juntas separam as classes sem
-  ler o contexto — um juiz pode acertar pela forma da fabricação, e nenhuma métrica do
-  `calibrar_juiz.py` denunciaria. A triagem também mostra que os 99 casos cobrem apenas
-  33 contextos distintos (três famílias sobre o mesmo contexto): kappa supõe itens
-  independentes, então o número honesto se publica como "99 casos sobre 33 contextos".
-  Corrigir isso é parte da revisão, não um passo posterior a ela.
+- **O conjunto de calibração produziria um kappa inflado — corrigido, e a guarda ficou.**
+  `python eval/triagem_calibracao.py` audita os rótulos em vez do juiz. Ele reprovava por
+  duas pistas de **forma**: 61% dos casos positivos terminavam numa frase que abria com
+  fórmula de atribuição ("O material recomenda…") contra 2% dos negativos, e os positivos
+  tinham mediana de 214 chars contra 308. As duas juntas separavam as classes sem ler o
+  contexto — um juiz acertaria pela forma da fabricação, e nenhuma métrica do
+  `calibrar_juiz.py` denunciaria. Os 30 injetados foram reescritos com o fato costurado
+  no meio da resposta e no comprimento dos negativos; hoje o gap é de 2pp e a razão de
+  tamanho 1.05, e a triagem aprova. **A guarda continua rodando**, porque o próximo
+  lote de casos pode reintroduzir a assinatura sem ninguém notar.
+- **O n efetivo do kappa é 33, não 99.** Os 99 casos cobrem apenas 33 contextos
+  distintos: cada contexto aparece três vezes, uma por família. Kappa supõe itens
+  independentes, e itens que compartilham contexto erram juntos — então o número se
+  publica como "99 casos sobre 33 contextos", nunca como 99 observações independentes.

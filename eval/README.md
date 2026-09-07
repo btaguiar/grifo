@@ -18,7 +18,7 @@
 - `triagem_calibracao.py` — audita **os rótulos**, não o juiz: assinatura de superfície
   (a classe positiva se separa sem ler o contexto?), n efetivo (casos ÷ contextos
   distintos), fato novo em paráfrase e positivo tardio. Sem LLM, determinístico.
-  Rode antes de publicar qualquer kappa — hoje **reprova**, e o motivo está abaixo.
+  Rode antes de publicar qualquer kappa. Hoje **aprova** — o histórico está abaixo.
 - `grafico_calibracao.py` — gera `docs/calibracao-threshold.png` a partir da tabela do
   EVALUATION.md.
 - `results/` — uma execução por arquivo. Só `metricas_*.json` e `calibracao_juiz.json`
@@ -31,16 +31,23 @@ Distribuição-alvo da calibração do juiz (plano de execução, Fase 1): ~40% 
 ~30% paráfrase fiel agressiva, ~30% com fato novo injetado — sem casos positivos
 suficientes o kappa é indefinido.
 
-**O que a triagem reprova hoje, e o que fazer com isso.** Medido em 2026-09-06 sobre os
-99 casos: 61% dos positivos terminam numa frase que abre com fórmula de atribuição ("O
-material recomenda…") contra 2% dos negativos, e os positivos são mais curtos (mediana
-214 contra 308 chars). São duas pistas de **forma** que separam as classes sem ler o
-contexto — um juiz pode acertar por elas, e o kappa subiria medindo a fabricação em vez
-do juiz. Antes de rotular: reescrever parte dos positivos com o fato novo no MEIO da
-resposta, sem fórmula de atribuição, no mesmo comprimento dos negativos. A triagem
-também reporta que os 99 casos cobrem só 33 contextos distintos (3 casos por contexto,
-uma família cada): itens que compartilham contexto não são independentes, então o kappa
-se publica como "99 casos sobre 33 contextos".
+**O que a triagem já pegou, e por que ela continua rodando.** Na primeira execução
+(2026-09-06) o conjunto reprovava: 61% dos casos positivos terminavam numa frase que
+abria com fórmula de atribuição ("O material recomenda…") contra 2% dos negativos, e os
+positivos eram mais curtos (mediana 214 contra 308 chars). Duas pistas de **forma** que
+separavam as classes sem ler o contexto — um juiz acertaria por elas, e o kappa subiria
+medindo a fabricação em vez do juiz. Os 30 injetados foram reescritos com o fato novo
+costurado no MEIO da resposta, sem fórmula de atribuição e no comprimento dos negativos:
+gap de 2pp, razão de tamanho 1.05, triagem aprovando. **Rode de novo a cada lote novo de
+casos** — a assinatura volta sozinha quando se fabrica em série.
+
+A triagem também reporta que os 99 casos cobrem só 33 contextos distintos (3 casos por
+contexto, uma família cada): itens que compartilham contexto não são independentes, então
+o kappa se publica como "99 casos sobre 33 contextos".
+
+**Antes de rotular, leia a regra de fronteira** (EVALUATION.md 3.2): elaboração inferida
+não conta como alucinação; só fato novo ausente dos trechos conta. Decidir isso caso a
+caso durante a revisão faz o kappa medir a inconsistência de quem rotula.
 
 Perguntas fora do escopo não são enfeite: a taxa de recusa correta é a métrica que quase
 ninguém mede e a que você vai defender em entrevista.
