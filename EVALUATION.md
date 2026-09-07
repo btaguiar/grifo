@@ -828,3 +828,13 @@ página valha mais do que a medição que a sustenta.
   revisão humana dos 93 rascunhos — trabalho de rotulagem, não de código. Enquanto
   isso, a taxa 0.00 continua **verificada à mão** (ver 5.4), não liberada pelo juiz, e
   a reconciliação da 5.8 é a evidência mais forte disponível sobre o que ele não vê.
+- **E o conjunto de calibração, do jeito que está, produziria um kappa inflado.**
+  `python eval/triagem_calibracao.py` audita os rótulos em vez do juiz, e hoje reprova
+  por duas pistas de **forma**: 61% dos casos positivos terminam numa frase que abre com
+  fórmula de atribuição ("O material recomenda…") contra 2% dos negativos, e os
+  positivos têm mediana de 214 chars contra 308. As duas juntas separam as classes sem
+  ler o contexto — um juiz pode acertar pela forma da fabricação, e nenhuma métrica do
+  `calibrar_juiz.py` denunciaria. A triagem também mostra que os 99 casos cobrem apenas
+  33 contextos distintos (três famílias sobre o mesmo contexto): kappa supõe itens
+  independentes, então o número honesto se publica como "99 casos sobre 33 contextos".
+  Corrigir isso é parte da revisão, não um passo posterior a ela.

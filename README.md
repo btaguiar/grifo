@@ -195,6 +195,7 @@ pytest                                # 159 testes, sem serviços externos
 pytest -m integration                 # 4 testes, exigem Qdrant no ar
 python eval/calibrar_retrieval.py     # varreduras de calibração (sem LLM)
 python eval/run_eval.py               # suite completa de avaliação
+python eval/triagem_calibracao.py     # audita os rótulos da calibração (sem LLM)
 python eval/calibrar_juiz.py          # kappa + matriz de confusão do juiz
 python eval/gate_regressao.py         # gate contra a última rodada da série
 python eval/serie_temporal.py         # gráfico da série (docs/serie-temporal.png)

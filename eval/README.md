@@ -15,6 +15,10 @@
 - `gerar_rascunhos_calibracao.py` — gera rascunhos de calibração a partir das respostas
   reais da rodada pública (fiéis verbatim, paráfrases agressivas, fatos injetados com
   marcador verificado ausente do contexto). Revisão humana é o passo que falta.
+- `triagem_calibracao.py` — audita **os rótulos**, não o juiz: assinatura de superfície
+  (a classe positiva se separa sem ler o contexto?), n efetivo (casos ÷ contextos
+  distintos), fato novo em paráfrase e positivo tardio. Sem LLM, determinístico.
+  Rode antes de publicar qualquer kappa — hoje **reprova**, e o motivo está abaixo.
 - `grafico_calibracao.py` — gera `docs/calibracao-threshold.png` a partir da tabela do
   EVALUATION.md.
 - `results/` — uma execução por arquivo. Só `metricas_*.json` e `calibracao_juiz.json`
@@ -26,6 +30,17 @@ Composição do golden set (SPEC DC-3): 60% conceitual, 20% factual/sigla (testa
 Distribuição-alvo da calibração do juiz (plano de execução, Fase 1): ~40% fiéis,
 ~30% paráfrase fiel agressiva, ~30% com fato novo injetado — sem casos positivos
 suficientes o kappa é indefinido.
+
+**O que a triagem reprova hoje, e o que fazer com isso.** Medido em 2026-09-06 sobre os
+99 casos: 61% dos positivos terminam numa frase que abre com fórmula de atribuição ("O
+material recomenda…") contra 2% dos negativos, e os positivos são mais curtos (mediana
+214 contra 308 chars). São duas pistas de **forma** que separam as classes sem ler o
+contexto — um juiz pode acertar por elas, e o kappa subiria medindo a fabricação em vez
+do juiz. Antes de rotular: reescrever parte dos positivos com o fato novo no MEIO da
+resposta, sem fórmula de atribuição, no mesmo comprimento dos negativos. A triagem
+também reporta que os 99 casos cobrem só 33 contextos distintos (3 casos por contexto,
+uma família cada): itens que compartilham contexto não são independentes, então o kappa
+se publica como "99 casos sobre 33 contextos".
 
 Perguntas fora do escopo não são enfeite: a taxa de recusa correta é a métrica que quase
 ninguém mede e a que você vai defender em entrevista.
