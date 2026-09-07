@@ -370,6 +370,14 @@ def run() -> dict:
             if item["should_answer"] and resposta["found"]
             else None
         )
+        # A versão dura da mesma pergunta: a aula esperada foi CITADA pelo modelo,
+        # não apenas recuperada. Só existe desde o contrato da Fase 2, que devolve
+        # `citations` validadas — antes disso não havia como distinguir.
+        registro["fonte_citada_correta"] = (
+            fonte_bate(item["expected_source"], [s for s in resposta["sources"] if s.get("cited")])
+            if item["should_answer"] and resposta["found"]
+            else None
+        )
         registro["citacao_ok"] = (
             bool(_CITACAO_RE.search(resposta["answer"])) if resposta["found"] else None
         )
@@ -390,6 +398,15 @@ def run() -> dict:
         ),
         "fonte_correta_em_respondidas": (
             round(sum(1 for i in respondidos if i["fonte_correta"]) / len(respondidos), 4)
+            if respondidos
+            else None
+        ),
+        # Mesmo denominador da de cima, critério mais duro: a aula esperada aparece
+        # entre as fontes que o modelo CITOU, não entre as que foram recuperadas. A
+        # diferença entre as duas é o quanto o número anterior devia à generosidade
+        # do critério, e é ela que interessa ler.
+        "fonte_citada_correta_em_respondidas": (
+            round(sum(1 for i in respondidos if i["fonte_citada_correta"]) / len(respondidos), 4)
             if respondidos
             else None
         ),

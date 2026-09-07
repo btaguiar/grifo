@@ -175,6 +175,72 @@ def test_settings_plugados_na_chain():
     assert settings.final_k > 0 and settings.max_answer_words == 200
 
 
+def test_fonte_citada_pelo_modelo_vem_marcada():
+    """As `citations` validadas do contrato deixam de ser descartadas.
+
+    `sources` continua listando tudo o que foi ao prompt; `cited` separa o que o
+    modelo de fato atribuiu — a diferença entre "a aula estava entre as recuperadas"
+    e "o modelo citou a aula certa".
+    """
+    chunks = [
+        *CHUNKS,
+        {
+            "id": "aula-05-funil:chunk3",
+            "text": "O funil tem topo, meio e fundo.",
+            "score": 0.52,
+            "metadata": {
+                "curso": "Curso Exemplo",
+                "modulo": "2 - Metricas",
+                "aula": "5 - Funil de Vendas",
+                "timestamp_inicio": None,
+                "pagina": 3,
+            },
+        },
+    ]
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": chunks},
+        structured=fake_structured(RESP_CITADA),
+    )
+    out = chain.invoke({"question": "como calcular o CAC?", "curso": "Curso Exemplo"})
+
+    citadas = [s for s in out["sources"] if s["cited"]]
+    assert len(out["sources"]) == 2, "sources segue sendo tudo o que fundamentou"
+    assert [s["aula"] for s in citadas] == ["4 - CAC e LTV"]
+
+
+def test_recusa_nao_marca_fonte_citada():
+    """Sem citações não há o que marcar — e recusa não tem fontes."""
+    chain = build_chain(retriever=lambda s: {**s, "chunks": []}, structured=fake_structured(None))
+    out = chain.invoke({"question": "bolo de cenoura?", "curso": "Curso Exemplo"})
+    assert out["sources"] == []
+
+
+def test_cliente_http_reaproveitado_entre_perguntas():
+    """O pool de conexões sobrevive à pergunta; cliente novo = handshake TLS novo.
+
+    `answer()` reconstrói a chain a cada pergunta, então sem o cache cada aluno
+    pagava uma conexão nova — custo no caminho crítico que não é do modelo.
+    """
+    chain_mod._openai_client.cache_clear()
+    try:
+        assert chain_mod._openai_client() is chain_mod._openai_client()
+    finally:
+        chain_mod._openai_client.cache_clear()
+
+
+def test_contadores_nao_sao_compartilhados_entre_chamadas():
+    """O cliente é compartilhado, os hooks NÃO — senão duas perguntas simultâneas
+    trocariam tokens e retries entre si (o /ask roda em threadpool)."""
+    chain_mod._openai_client.cache_clear()
+    try:
+        a, b = chain_mod._default_structured(), chain_mod._default_structured()
+        assert a.client is not b.client  # wrapper instructor por chamada
+        assert a.client.client is b.client.client  # mesmo cliente HTTP por baixo
+        assert a.client.hooks is not b.client.hooks
+    finally:
+        chain_mod._openai_client.cache_clear()
+
+
 def test_caminho_default_sem_retriever_injetado(monkeypatch):
     """Regressao: build_chain() SEM retriever injetado precisa rodar.
 

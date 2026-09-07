@@ -16,6 +16,11 @@ class Source(BaseModel):
     aula: str
     timestamp: str | None = None
     score: float
+    #: O modelo CITOU esta fonte na resposta? Sai das `citations` validadas do
+    #: contrato (Fase 2). `sources` continua listando tudo o que foi ao prompt —
+    #: este campo separa o que fundamentou do que foi de fato atribuído. Default
+    #: False para não quebrar cliente antigo nem o caminho de recusa.
+    cited: bool = False
 
 
 class TokenUsage(BaseModel):

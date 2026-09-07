@@ -24,12 +24,14 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import Callable
+from functools import lru_cache
+from typing import Any
 
 from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda
 
 from grifo.config import REFUSAL_MESSAGE, settings
 from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT, format_context
-from grifo.generation.schemas import GrifoAnswer, pares_recuperados
+from grifo.generation.schemas import GrifoAnswer, SourceRef, _numero, pares_recuperados
 from grifo.retrieval.hybrid import retrieve
 from grifo.retrieval.rerank import rerank
 
@@ -43,6 +45,27 @@ _CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
 StructuredLLM = Callable[[str], tuple[GrifoAnswer, dict[str, int], int]]
 
 
+@lru_cache(maxsize=1)
+def _openai_client() -> Any:
+    """Cliente HTTP da OpenAI, reaproveitado entre perguntas.
+
+    O que se cacheia aqui é o pool de conexões do httpx. `answer()` chama
+    `build_chain()` a cada pergunta, e um cliente novo por pergunta significa
+    handshake TLS novo por pergunta — custo no caminho do aluno que não tem nada a
+    ver com o modelo. Mesmo padrão do `_client()` e do `_embedder()` do
+    `vector_store`, e com a mesma ressalva: trocar `settings` em runtime exige
+    `_openai_client.cache_clear()` (é o que os testes fazem).
+
+    O cliente é compartilhado, os hooks NÃO — ver `_default_structured`.
+    """
+    from openai import OpenAI
+
+    return OpenAI(
+        api_key=settings.openai_api_key or "nao-configurado",
+        base_url=settings.openai_base_url or None,
+    )
+
+
 def _default_structured() -> StructuredLLM:
     """Cliente instructor sobre a API OpenAI-compatível das settings.
 
@@ -50,10 +73,15 @@ def _default_structured() -> StructuredLLM:
     mensagem de erro ao modelo, que corrige a própria saída. Os hooks contam os
     erros de validação (para o `retry_rate` do eval) e somam os tokens de TODAS as
     tentativas — tentativa de correção também é gasto (FR-36).
+
+    Os hooks e o `estado` que eles alimentam nascem AQUI, uma vez por pergunta, e
+    não são cacheados junto com o cliente HTTP. É deliberado: o `/ask` do FastAPI é
+    `def` síncrono e roda em threadpool, então duas perguntas simultâneas
+    compartilhariam o contador e trocariam tokens e retries entre si. Barato de
+    construir, e `instructor.from_openai` não muta o cliente que recebe.
     """
     import instructor
     from instructor.core.hooks import HookName, Hooks
-    from openai import OpenAI
 
     hooks = Hooks()
     estado = {"erros_validacao": 0, "tokens_input": 0, "tokens_output": 0}
@@ -70,13 +98,7 @@ def _default_structured() -> StructuredLLM:
     hooks.on(HookName.PARSE_ERROR, _erro_de_validacao)
     hooks.on(HookName.COMPLETION_RESPONSE, _uso_da_tentativa)
 
-    client = instructor.from_openai(
-        OpenAI(
-            api_key=settings.openai_api_key or "nao-configurado",
-            base_url=settings.openai_base_url or None,
-        ),
-        hooks=hooks,
-    )
+    client = instructor.from_openai(_openai_client(), hooks=hooks)
 
     class _InstructorLLM:
         """Chamável que carrega o client — exposto para inspeção e teste de config."""
@@ -141,13 +163,26 @@ def _refusal(state: dict) -> dict:
     }
 
 
-def _sources(chunks: list[dict]) -> list[dict]:
+def _sources(chunks: list[dict], citations: list[SourceRef] | None = None) -> list[dict]:
+    """Os chunks que foram ao prompt, marcando quais o modelo de fato CITOU.
+
+    `sources` continua sendo tudo o que fundamentou a resposta — a semântica do DC-2
+    não muda, e a série temporal segue comparável. O que entra é o `cited`: desde o
+    contrato da Fase 2 o modelo devolve `citations` validadas contra os trechos
+    recuperados, e esse dado estava sendo descartado. Com ele dá para separar "a aula
+    certa estava entre as recuperadas" de "o modelo citou a aula certa", que é a
+    pergunta mais dura e a que o `fonte_correta_em_respondidas` não responde.
+
+    Sem `citations` (recusa, ou chamada antiga) nada é marcado como citado.
+    """
+    citadas = {(_numero(c.modulo), _numero(c.aula)) for c in citations or []}
     return [
         {
             "modulo": c["metadata"]["modulo"],
             "aula": c["metadata"]["aula"],
             "timestamp": c["metadata"].get("timestamp_inicio"),
             "score": round(float(c["score"]), 4),
+            "cited": (_numero(c["metadata"]["modulo"]), _numero(c["metadata"]["aula"])) in citadas,
         }
         for c in chunks
     ]
@@ -194,7 +229,7 @@ def _generate(state: dict, structured: StructuredLLM) -> dict:
         answer_text = _ensure_citation(answer_text, state["chunks"])
     return {
         "answer": answer_text,
-        "sources": _sources(state["chunks"]),
+        "sources": _sources(state["chunks"], parsed.citations),
         "found": True,
         "contexts": _contexts(state["chunks"]),
         "tokens": tokens,
