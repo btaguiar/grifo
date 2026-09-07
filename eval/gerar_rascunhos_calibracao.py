@@ -75,152 +75,152 @@ PARAFRASES: dict[str, str] = {
 # id do golden set -> (resposta real + fato novo, marcador do fato, o que foi injetado)
 INJETADOS: dict[str, tuple[str, str, str]] = {
     "gs-011": (
-        "Os indicadores devem estar visíveis para quem executa o processo, pois quem opera é quem gera o dado. Na prática, o material recomenda um painel com atualização diária e alertas automáticos quando o indicador sai da faixa [Módulo 1, Aula 1].",
+        "Os indicadores do processo devem estar visíveis para quem executa, porque quem opera é quem gera o dado. O padrão descrito é um painel com atualização diária e alertas automáticos quando o indicador sai da faixa, sem depender de alguém puxar o número. Se a informação demora a chegar ao gestor, a correção atrasa junto — e encurtar essa distância é o ponto [Módulo 1, Aula 1].",
         "alertas automáticos",
         "recomendação ausente do contexto (painel com atualização diária e alertas)",
     ),
     "gs-001": (
-        "Para calcular o CAC, divida o custo total de aquisição pelo número de clientes conquistados no mesmo período, incluindo mídia, salários do time comercial e ferramentas. Um benchmark comum é manter o CAC abaixo de 10% do LTV por cliente [Módulo 2, Aula 4].",
+        "Para calcular o CAC, divida o custo total de aquisição pelo número de clientes conquistados no mesmo período. Esse custo inclui mídia, salários do time comercial e ferramentas de venda, e a referência é manter o CAC abaixo de 10% do LTV por cliente. Considerar só o gasto com anúncios dá um número artificialmente baixo e leva a decisão de investimento errada [Módulo 2, Aula 4].",
         "10% do LTV",
         "benchmark numérico ausente do contexto",
     ),
     "gs-007": (
-        "Gestão 4.0 é gerir a empresa decidindo com dados em vez de opinião, organizada em quatro movimentos que se repetem: Alinhar, Rodar, Corrigir e Otimizar. Segundo a aula, empresas que adotam esse modelo reduzem o ciclo de decisão em média 40% [Módulo 1, Aula 1].",
+        "Gestão 4.0 é gerir decidindo com dados em vez de opinião, e a transformação digital começa escolhendo quais decisões do dia a dia passam a ser orientadas por dados — a tecnologia entra por último. Empresas que adotam o modelo reduzem o ciclo de decisão em média 40%. O modelo se organiza em quatro movimentos que se repetem: Alinhar, Rodar, Corrigir e Otimizar [Módulo 1, Aula 1].",
         "40%",
         "número de produtividade ausente do contexto",
     ),
     "gs-009": (
-        "O ciclo de quatro movimentos funciona assim: Alinhar é conectar a meta ao que a equipe consegue executar; Rodar é executar em ciclos curtos, de preferência semanais; Corrigir é comparar o resultado com o esperado e ajustar a rota sem drama; Otimizar é eliminar o gargalo antes de escalar. O material recomenda que cada ciclo completo tenha duração de 30 dias [Módulo 1, Aula 1].",
+        "O ciclo tem quatro movimentos: Alinhar é conectar a meta ao que a equipe consegue executar; Rodar é executar em ciclos curtos, de preferência semanais; Corrigir é comparar o resultado com o esperado e ajustar a rota sem drama. Cada ciclo completo leva 30 dias de ponta a ponta. Otimizar fecha, eliminando o gargalo antes de escalar — e a ordem importa, porque acelerar processo desalinhado só faz errar mais rápido [Módulo 1, Aula 1].",
         "30 dias",
         "duração de ciclo ausente do contexto",
     ),
     "gs-010": (
-        "Otimizar um processo desalinhado é problema porque faz a empresa errar mais rápido. O material cita o caso de uma indústria que duplicou a capacidade produtiva com o processo desalinhado e triplicou o prejuízo [Módulo 1, Aula 1].",
+        "Otimizar um processo desalinhado é problema porque faz a empresa errar mais rápido. Uma indústria que duplicou a capacidade produtiva antes de alinhar triplicou o prejuízo no mesmo período. A ordem das etapas é o que importa: primeiro conectar a meta ao que a equipe consegue executar, só depois otimizar, senão os erros se multiplicam [Módulo 1, Aula 1].",
         "triplicou o prejuízo",
         "caso/nome ausente do contexto",
     ),
     "gs-012": (
-        "O ICP descreve a empresa cliente com o melhor encaixe com o que você vende; a persona descreve a pessoa que decide a compra dentro dessa empresa. O material recomenda revisar o ICP a cada seis meses [Módulo 1, Aula 2].",
+        "O ICP descreve a empresa cliente com o melhor encaixe no que você vende — setor, porte, momento, orçamento — e deve ser revisado a cada seis meses. A persona descreve a pessoa que decide a compra dentro dessa empresa: dores, objetivos e objeções. Confundir os dois leva o comercial a conversar com a pessoa errada dentro da empresa certa, ou o inverso [Módulo 1, Aula 2].",
         "seis meses",
         "recomendação temporal ausente do contexto",
     ),
     "gs-013": (
-        "Para definir o perfil de cliente ideal, considere setor, porte, momento e orçamento da empresa que melhor se encaixa no que você vende. A aula sugere começar analisando os últimos 12 meses de faturamento por cliente [Módulo 1, Aula 2].",
+        "Para definir o perfil de cliente ideal, comece analisando os últimos 12 meses de faturamento por cliente e descreva a empresa que melhor se encaixa no que você vende: setor, porte, momento e orçamento. Não confunda com a persona, que é a pessoa que decide a compra lá dentro, com dores e objeções próprias — trocar um pelo outro dá conversa com a pessoa errada [Módulo 1, Aula 2].",
         "12 meses",
         "método numérico ausente do contexto",
     ),
     "gs-015": (
-        "Para qualificar o cliente ideal, faça perguntas como: quais clientes renovam e expandem contratos sem esforço comercial? O que têm em comum? Quais dão prejuízo desproporcional? Que evento dispara a necessidade? O material indica priorizar clientes com NPS acima de 50 nesse filtro [Módulo 1, Aula 2].",
+        "Para qualificar o cliente ideal: quais clientes renovam e expandem sem esforço comercial? O que eles têm em comum de setor, porte e maturidade? Nesse filtro, priorize os que estão com NPS acima de 50. Quais dão prejuízo desproporcional, e que evento dispara a necessidade do que você vende? As respostas viram critério objetivo, no lugar de 'todo mundo que puder pagar' [Módulo 1, Aula 2].",
         "NPS acima de 50",
         "critério numérico ausente do contexto",
     ),
     "gs-017": (
-        "Além de anúncios, entram no CAC os salários do time comercial e as ferramentas usadas no processo de venda. Em média, esses itens representam 35% do CAC total nas empresas de tecnologia [Módulo 2, Aula 4].",
+        "Além dos anúncios, entram no CAC os salários do time comercial e as ferramentas usadas no processo de venda — itens que representam 35% do CAC total nas empresas de tecnologia. Somar só a mídia deixa o número artificialmente baixo, e decisão de investimento tomada em cima dele sai errada [Módulo 2, Aula 4].",
         "35%",
         "estatística setorial ausente do contexto",
     ),
     "gs-021": (
-        "O funil de vendas representa o caminho do lead do primeiro contato até a compra, com três regiões: topo, meio e fundo. Um funil B2B típico converte cerca de 3% dos leads de topo em clientes [Módulo 2, Aula 5].",
+        "O funil representa o caminho do lead do primeiro contato até a compra, em três regiões: topo, meio e fundo. Um funil B2B típico converte cerca de 3% dos leads de topo em clientes. No topo o lead consome conteúdo educativo, no meio compara soluções com estudo de caso e demonstração, e no fundo já decidiu comprar e olha prazo e condições [Módulo 2, Aula 5].",
         "3%",
         "taxa de conversão típica ausente do contexto",
     ),
     "gs-023": (
-        "No meio do funil, o lead compara soluções: estudos de caso, demonstrações e provas de resultado funcionam melhor. A aula recomenda enviar um caso de sucesso por semana nessa etapa [Módulo 2, Aula 5].",
+        "No meio do funil o lead compara soluções e quer entender diferenças, preços e riscos. A cadência indicada é enviar um caso de sucesso por semana nessa etapa. Estudo de caso, demonstração e prova de resultado são o material que funciona aqui — o lead do meio quer subsídio para escolher, não aula introdutória [Módulo 2, Aula 5].",
         "por semana",
         "cadência de conteúdo ausente do contexto",
     ),
     "gs-025": (
-        "A métrica central do funil é a taxa de conversão entre etapas, medida por etapa e não só no total. O material considera saudável uma conversão mínima de 20% por etapa [Módulo 2, Aula 5].",
+        "A métrica central do funil é a taxa de conversão entre etapas, medida etapa por etapa e não só no total. A conversão mínima considerada saudável é 20% por etapa. Funil bom não é o que mais recebe leads, é o que menos vaza onde importa — e é por isso que a medição precisa ser por etapa [Módulo 2, Aula 5].",
         "20%",
         "meta numérica ausente do contexto",
     ),
     "gs-026": (
-        "Critério de saída é a condição objetiva que move o lead para a etapa seguinte do funil. O material dá o exemplo da empresa SoftSales, que aumentou a conversão em 15% depois de escrever critérios [Módulo 2, Aula 5].",
+        "Critério de saída é a condição objetiva que move o lead para a etapa seguinte do funil. A SoftSales aumentou a conversão em 15% depois de escrever os critérios de cada etapa. Sem essa condição escrita, cada vendedor inventa o que considera um lead qualificado, e a conversão deixa de significar a mesma coisa entre etapas [Módulo 2, Aula 5].",
         "SoftSales",
         "empresa/caso ausente do contexto",
     ),
     "gs-027": (
-        "Conserte o vazamento antes de aumentar a entrada: aquisição com retenção fraca é encher um balde furado. Meça churn, frequência de uso e expansão de contrato. O balde furado é a metafora usada pelo professor Philip Kotler [Módulo 3, Aula 6].",
+        "Conserte o vazamento antes de aumentar a entrada: aquisição com retenção fraca é encher balde furado, metáfora que Philip Kotler usa para o problema. Meça churn, frequência de uso e expansão de contrato antes de pisar no acelerador de leads — retenção é o multiplicador que decide o que a aquisição vira [Módulo 3, Aula 6].",
         "Philip Kotler",
         "atribuição de autoria ausente do contexto",
     ),
     "gs-028": (
-        "O funil é um modelo de gasto; o growth loop é um modelo em que a saída de um ciclo alimenta a entrada do seguinte. O case da Dropbox é o exemplo clássico citado na aula, com crescimento de 300% sem verba de mídia [Módulo 3, Aula 6].",
+        "O funil é modelo de gasto: você paga para o lead entrar e ele desce até comprar ou vazar. O growth loop é o modelo em que a saída de um ciclo alimenta a entrada do seguinte, e a Dropbox é o caso clássico, com crescimento de 300% sem verba de mídia. Ninguém vive só de loop, mas toda empresa deveria saber qual é o seu [Módulo 3, Aula 6].",
         "Dropbox",
         "case e número ausentes do contexto",
     ),
     "gs-029": (
-        "Retenção antes de aquisição porque retenção é o multiplicador do crescimento. A aula menciona que subir a retenção em 5 pontos pode dobrar a receita em 18 meses [Módulo 3, Aula 6].",
+        "Retenção vem antes de aquisição porque retenção é o multiplicador do crescimento: subir a retenção em 5 pontos pode dobrar a receita em 18 meses. Acelerar a entrada com a saída furada é encher balde furado — meça churn, frequência de uso e expansão de contrato antes de investir em mais leads [Módulo 3, Aula 6].",
         "18 meses",
         "projeção numérica ausente do contexto",
     ),
     "gs-030": (
-        "Meça o NPS a cada ciclo, com a pergunta 'de 0 a 10, quanto você recomendaria?' aplicada depois de um momento real de uso. O NPS é calculado subtraindo os detratores dos promotores, e a/meta da aula é chegar a 70 [Módulo 3, Aula 6].",
+        "Meça o NPS a cada ciclo, com a pergunta de 0 a 10 aplicada depois de um momento real de uso, subtraindo detratores de promotores. A meta é chegar a 70. O que importa não é o número isolado, e sim a tendência e o comentário que vem junto, onde aparece o motivo de o promotor promover e o detrator detonar [Módulo 3, Aula 6].",
         "chegar a 70",
         "meta numérica ausente do contexto",
     ),
     "gs-031": (
-        "No NPS importa mais a tendência e o comentário do que o número isolado. O material recomenda acompanhar a tendência em janelas trimestrais [Módulo 3, Aula 6].",
+        "No NPS importa mais a tendência do que o número isolado, acompanhada em janelas trimestrais para não reagir a ruído. O comentário que vem junto é a outra metade da medição: é nele que aparece por que o promotor promove e por que o detrator detona — e é o comentário, não a nota, que vira ação concreta [Módulo 3, Aula 6].",
         "trimestrais",
         "janela temporal ausente do contexto",
     ),
     "gs-032": (
-        "Trocar de motor de crescimento todo mês é a forma elegante de não crescer nunca: estratégia é a escolha consciente de um motor e a disciplina de medir se ele gira. A aula sugere no mínimo dois trimestres com o mesmo motor antes de avaliar a troca [Módulo 3, Aula 6].",
+        "Não: trocar de motor de crescimento todo mês é a forma elegante de não crescer nunca. O mínimo antes de avaliar a troca é dois trimestres com o mesmo motor. Estratégia de crescimento é escolher conscientemente um motor — retenção, indicação, conteúdo, parceria — e ter a disciplina de medir se ele gira [Módulo 3, Aula 6].",
         "dois trimestres",
         "prazo de avaliação ausente do contexto",
     ),
     "gs-033": (
-        "As três estratégias clássicas de preço são: por custo, por concorrência e por valor, sendo a de valor a recomendada pelo curso. A aula cita a Netflix como exemplo de precificação por valor bem-sucedida [Módulo 3, Aula 7].",
+        "São três estratégias clássicas de preço: por custo, por concorrência e por valor, sendo a de valor a recomendada pelo curso. A Netflix é o exemplo de precificação por valor bem-sucedida. Preço por custo ignora o quanto o cliente valoriza, e preço por concorrência entrega sua margem ao concorrente mais desesperado [Módulo 3, Aula 7].",
         "Netflix",
         "empresa exemplo ausente do contexto",
     ),
     "gs-034": (
-        "O preço por custo é limitado porque ignora o quanto o cliente valoriza o produto. O material alerta que essa estratégia perde em média 12% de margem por ano frente à precificação por valor [Módulo 3, Aula 7].",
+        "O preço por custo é limitado porque ignora o quanto o cliente valoriza o produto: a estratégia perde em média 12% de margem por ano frente à precificação por valor. A recomendada é ancorar a conversa no resultado econômico que o produto gera para o cliente, e não na margem sobre o custo de produzi-lo [Módulo 3, Aula 7].",
         "12%",
         "comparativo numérico ausente do contexto",
     ),
     "gs-035": (
-        "Precificar pela concorrência entrega sua margem nas mãos do concorrente mais desesperado. O material recomenda monitorar os preços dos três principais concorrentes toda segunda-feira [Módulo 3, Aula 7].",
+        "Precificar pela concorrência é seguir a tabela do mercado — confortável, e entrega sua margem nas mãos do concorrente mais desesperado. O monitoramento indicado é checar os preços dos três principais concorrentes toda segunda-feira. O preço deixa de ser decisão sua e passa a ser reação à decisão dos outros [Módulo 3, Aula 7].",
         "toda segunda-feira",
         "prática de monitoramento ausente do contexto",
     ),
     "gs-036": (
-        "Precificar por valor é ancorar a conversa no resultado econômico que o produto gera para o cliente — a estratégia recomendada. Dentro dela, use a âncora: apresente primeiro a opção mais completa e cara. A âncora foi descrita pela primeira vez em 1974 por Amos Tversky [Módulo 3, Aula 7].",
+        "Precificar por valor é ancorar a conversa no resultado econômico que o produto gera para o cliente. Dentro dessa estratégia entra a âncora, descrita pela primeira vez em 1974 por Amos Tversky: apresentar antes a opção mais completa e cara, para que as demais pareçam razoáveis na comparação. É a estratégia que o curso recomenda [Módulo 3, Aula 7].",
         "1974",
         "data histórica ausente do contexto",
     ),
     "gs-037": (
-        "Dar desconto sem contrapartida é ruim porque ensina o cliente a pedir desconto sempre. Segundo a aula, cada desconto sem contrapartida reduz a chance de renovação em 8 pontos percentuais [Módulo 3, Aula 7].",
+        "Dar desconto sem contrapartida é ruim porque ensina o cliente a pedir desconto sempre. Cada desconto concedido assim reduz a chance de renovação em 8 pontos percentuais. A contrapartida é o que mantém a conversa ancorada em valor: prazo maior, volume, caso de sucesso — algo que compense a margem que sai [Módulo 3, Aula 7].",
         "8 pontos",
         "estatística ausente do contexto",
     ),
     "gs-038": (
-        "Nunca reajustar é erro porque inflação e melhoria de produto existem — preço parado é margem derretendo devagar. O material recomenda reajuste anual obrigatório por contrato [Módulo 3, Aula 7].",
+        "Nunca reajustar é erro porque inflação existe e melhoria de produto também: preço parado é margem derretendo devagar. O que fica fixado é reajuste anual obrigatório por contrato. Mudança de preço é parte normal da gestão, não crise — o que precisa existir é o critério que a sustenta [Módulo 3, Aula 7].",
         "reajuste anual obrigatório",
         "recomendação contratual ausente do contexto",
     ),
     "gs-042": (
-        "A sigla usada para medir recomendação de clientes é NPS (Net Promoter Score), criada por Fred Reichheld em 2003 [Módulo 3, Aula 6].",
+        "A sigla é NPS, de Net Promoter Score, criada por Fred Reichheld em 2003. Ela mede recomendação com a pergunta de 0 a 10 aplicada depois de um momento real de uso, e o que se acompanha é a tendência ao longo dos ciclos, junto com o comentário que o cliente deixa [Módulo 3, Aula 6].",
         "Fred Reichheld",
         "autoria/criação ausente do contexto",
     ),
     "gs-043": (
-        "A técnica recomendada é a âncora: apresentar primeiro a opção mais completa e cara para que as demais pareçam razoáveis. A aula recomenda nunca aplicar a âncora em clientes de primeira compra [Módulo 3, Aula 7].",
+        "A técnica recomendada é a âncora: apresentar primeiro a opção mais completa e cara, para que as demais pareçam razoáveis na comparação. A restrição é nunca aplicá-la em clientes de primeira compra. Ela opera dentro da precificação por valor, que ancora a conversa no resultado econômico gerado para o cliente [Módulo 3, Aula 7].",
         "primeira compra",
         "restrição ausente do contexto",
     ),
     "gs-044": (
-        "ICP significa Ideal Customer Profile: a empresa cliente com o melhor encaixe no que você vende — setor, porte, momento e orçamento. O conceito ficou popular com o livro 'Predictable Revenue', de Aaron Ross [Módulo 1, Aula 2].",
+        "ICP significa Ideal Customer Profile: a empresa cliente com o melhor encaixe no que você vende — setor, porte, momento e orçamento. O conceito ficou popular com o livro 'Predictable Revenue', de Aaron Ross. Não confunda com a persona, que descreve a pessoa que decide a compra dentro dessa empresa [Módulo 1, Aula 2].",
         "Aaron Ross",
         "referência bibliográfica ausente do contexto",
     ),
     "gs-045": (
-        "A razão LTV/CAC abaixo de 1 significa que cada cliente novo destrói valor. O material considera a razão ideal algo entre 3 e 5 [Módulo 2, Aula 4].",
+        "A razão LTV/CAC abaixo de 1 significa que cada cliente novo destrói valor: você gasta mais para adquirir do que ele devolve ao longo do relacionamento. A razão considerada ideal fica entre 3 e 5. Abaixo de 1 o crescimento consome caixa em vez de gerar, e escalar a aquisição só acelera o problema [Módulo 2, Aula 4].",
         "entre 3 e 5",
         "faixa de referência ausente do contexto",
     ),
     "gs-046": (
-        "As três regiões do funil são topo, meio e fundo. No topo o lead aprende o nome do problema, no meio compara soluções, no fundo decide de quem comprar. A aula atribui o modelo de funil a Elias St. Elmo Lewis [Módulo 2, Aula 5].",
+        "As três regiões do funil são topo, meio e fundo. O modelo é atribuído a Elias St. Elmo Lewis. No topo o lead aprende o nome do problema, no meio compara soluções com estudo de caso e demonstração, e no fundo já decidiu comprar e está escolhendo de quem, olhando prazo e condições [Módulo 2, Aula 5].",
         "Elias St. Elmo Lewis",
         "atribuição histórica ausente do contexto",
     ),
@@ -246,12 +246,21 @@ def main() -> int:
             print(f"erro: marcador '{marcador}' de {gs} EXISTE no contexto — injeção inválida")
             return 3
 
-    casos: list[dict] = [
+    # Idempotente: os rascunhos são DESCARTADOS e regerados; só o que já passou pela
+    # revisão humana (sem o campo `rascunho`) sobrevive. Antes o script só anexava, e
+    # rodar duas vezes duplicava o conjunto inteiro — o que corrompe o kappa sem
+    # avisar, porque duplicata infla o acordo. Reescrever um rascunho é editar o dado
+    # aqui e rodar de novo; revisar é apagar o campo no JSONL, e aí ele fica.
+    todos = [
         json.loads(linha)
         for linha in CALIBRACAO.read_text(encoding="utf-8").splitlines()
         if linha.strip()
     ]
-    proximo = max(int(c["id"].split("-")[1]) for c in casos) + 1
+    casos: list[dict] = [c for c in todos if not c.get("rascunho")]
+    descartados = len(todos) - len(casos)
+    if descartados:
+        print(f"regerando: {descartados} rascunhos descartados, {len(casos)} confirmados mantidos")
+    proximo = max((int(c["id"].split("-")[1]) for c in casos), default=0) + 1
 
     def novo(gs: str, answer: str, alucina: bool, nota: str) -> dict:
         nonlocal proximo
