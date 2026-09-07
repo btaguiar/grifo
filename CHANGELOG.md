@@ -110,3 +110,74 @@ dependências de desenvolvimento para isto ser reprodutível.
 **Auditoria de governança antes de publicar (GOV-5).** Nenhum segredo em nenhum commit e
 o material do curso nunca versionado — mas a *origem* do material vazava, e foi o que
 motivou refazer o histórico.
+
+## Setembro de 2026 — fechando o ciclo de avaliação
+
+Sete frentes executadas contra um plano escrito ([docs/plano-execucao.md](docs/plano-execucao.md)).
+O que segue está na ordem em que as coisas apareceram, e duas delas são pioras.
+
+**O regex saiu do caminho de produção, e a citação parou de ser fabricada.** A saída do
+LLM virou contrato Pydantic (`GrifoAnswer`) validado por instructor, com retry instruído:
+violação de schema volta ao modelo como erro, em vez de o código consertar a saída por
+fora. O par módulo/aula citado passa a ser validado contra os trechos efetivamente
+recuperados — citar aula não consultada reprova o contrato. O `_ensure_citation`, que
+anexava a citação à força em 9 de 44 respostas (20%), continua no código atrás de
+`FORCE_CITATION=false` — mesmo padrão do reranker: mecanismo medido que ficou
+explicitamente desligado. Rodadas A/B nas duas configurações: a citação é **1.00
+espontânea, com zero re-validações**, e a rodada com a flag ligada não teve o que
+consertar.
+
+**E custou latência, que é o preço publicado.** O caminho estruturado troca chamada de
+chat simples por tool calling, com o schema viajando em toda requisição: +55% de tokens
+de entrada por pergunta (361 → 561) e p95 de 2,58s para 3,53s — acima da meta de 3s.
+O NFR-1 volta a não atingir no corpus público. O ganho é a citação deixar de ser
+artificial e a validação de fonte passar a existir; o custo é este, e está na tabela em
+vez de numa nota de rodapé.
+
+**Um campo do golden set estava rotulado à mão e sem consumidor nenhum.** O
+`expected_answer_contains` existia nos dois golden sets desde o início e nenhuma métrica
+o lia — o eval sabia dizer se a *aula* estava certa, nunca se a *resposta* estava. Virou
+`cobertura_conteudo`, e os dois itens que ela reprova dizem exatamente o que ela existe
+para dizer: um responde a definição sem os termos que a aula pede, o outro troca
+"gasto"/"composto" por "paga"/"cíclico" — conteúdo certo, termo não. O limiar de 0.90
+saiu da primeira rodada medida, não de um palpite anterior a ela.
+
+**Duas rodadas versionadas não formam série.** Corpora, provedores e tamanhos diferentes:
+dois pontos que não se ligam. Existe agora uma configuração canônica congelada, e a
+rodada só grava `serie: true` se rodar exatamente nela — números comparáveis entre si ou
+nada. Com isso vieram o gate de regressão contra a última rodada da série, o gráfico
+derivado dos dados e o `custo_usd` calculado dos tokens medidos. O gate reprova hoje, no
+p95, e foi deixado assim.
+
+**Trocar uma vírgula de prompt movia os números sem deixar rastro.** O histórico
+`0.43 → 0.795 → 0.045` de alucinação é esse efeito acontecendo três vezes. Os prompts
+saíram do código para `.txt` versionados, o SHA-256 de cada um acompanha o bloco `config`
+de toda rodada, e um teste trava o hash de referência: mudar prompt passa a exigir
+atualizar o hash, o que torna a mudança decisão explícita em vez de efeito colateral.
+
+**O juiz ganhou a máquina inteira e continua sem número.** Matriz de confusão, precisão,
+recall, taxa de falso positivo e Kappa de Cohen, com piso de 0.70 e registro que
+acompanha cada rodada. O conjunto de calibração foi de 6 para 99 casos — mas 93 estão
+marcados `"rascunho": true`, rótulo proposto e não revisado, e o `calibrar_juiz.py` os
+exclui de propósito. Na prática o kappa hoje sairia sobre os mesmos 6 casos de sempre. O
+que falta é rotulagem humana, não código, e está declarado como tal em vez de contornado.
+
+**Medir os rótulos, e não só o juiz, mostrou que o kappa sairia inflado.** O
+`calibrar_juiz.py` mede o juiz *contra* os rótulos; ninguém media os rótulos. A triagem
+nova encontrou o problema: **61% dos casos positivos terminam numa frase que abre com
+fórmula de atribuição** ("O material recomenda…") contra 2% dos negativos, e os positivos
+são mais curtos — mediana de 214 chars contra 308. Duas pistas de *forma* que separam as
+classes sem ler o contexto: um juiz pode acertar pela forma da fabricação, o kappa sobe, e
+nenhuma métrica do relatório denuncia. A triagem também mostrou que os 99 casos cobrem só
+33 contextos distintos, três famílias sobre cada um — kappa supõe itens independentes.
+Ela reprova hoje, e corrigir isso passou a ser pré-condição da rotulagem, não um passo
+depois dela.
+
+**Uma reescrita em PowerShell deixou o README ilegível, e o commit seguinte não viu.** O
+arquivo foi lido como Windows-1252 e regravado como UTF-8: "dúvidas" virou "dÃºvidas" em
+301 pontos, bytes UTF-8 válidos e caracteres errados. O commit que veio depois removeu o
+BOM e passou ao lado da causa. A assinatura estava nos próprios caracteres — `€`, `"`,
+`‰`, `ƒ` são os bytes 0x80, 0x94, 0x89 e 0x83 do cp1252 —, e um `\x8d` solto denunciava
+o decodificador que passa adiante os cinco bytes que aquela tabela não define. Ficou na
+branch e não chegou ao `main`. É o mesmo modo de falha que este projeto vem colecionando:
+tudo continua "funcionando", só que errado, e sem erro nenhum para avisar.
