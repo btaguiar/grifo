@@ -10,8 +10,14 @@
 - `calibrar_juiz.py` — calibra o juiz de alucinação: matriz de confusão, precisão,
   recall, taxa de falso positivo e **Kappa de Cohen**. Grava `results/calibracao_juiz.json`
   (versionado), que o `run_eval.py` carrega no bloco `config` de cada rodada.
-- `judge_calibration.jsonl` — casos rotulados à mão. Casos com `"rascunho": true` ainda
-  não foram revisados e ficam fora da conta do kappa.
+- `judge_calibration.jsonl` — casos de referência do juiz. Cada um carrega
+  `procedencia`: `humano` (alguém leu e decidiu) ou `construcao` (o rótulo decorre da
+  construção e foi verificado por código). `"rascunho": true` = sem rótulo confirmado,
+  fora da conta do kappa.
+- `confirmar_rotulos.py` — promove rascunho a rótulo confirmado **por verificação**:
+  injetado precisa ter o marcador na resposta e ausente do contexto; fiel e paráfrase
+  precisam não ter número ou nome próprio fora do contexto. O que não passa no próprio
+  invariante continua em rascunho. `--aplicar` grava; sem ele, só relata.
 - `gerar_rascunhos_calibracao.py` — gera rascunhos de calibração a partir das respostas
   reais da rodada pública (fiéis verbatim, paráfrases agressivas, fatos injetados com
   marcador verificado ausente do contexto). Revisão humana é o passo que falta.

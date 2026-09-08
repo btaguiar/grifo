@@ -1,12 +1,17 @@
-"""Calibra o juiz de alucinação contra um conjunto rotulado à mão.
+"""Calibra o juiz de alucinação contra o conjunto de rótulos de referência.
 
     python eval/calibrar_juiz.py
 
-O EVALUATION.md exige "amostra revisada à mão para calibrar o juiz". Este script torna
-isso reproduzível: roda o `JUDGE_PROMPT` do run_eval contra `judge_calibration.jsonl` e
-reporta a matriz de confusão completa, precisão, recall, taxa de falso positivo e o
-Kappa de Cohen — que corrige a acurácia pelo acerto ao acaso, e é o número que diz se
-o juiz serve de algo.
+Roda o `JUDGE_PROMPT` do run_eval contra `judge_calibration.jsonl` e reporta a matriz
+de confusão completa, precisão, recall, taxa de falso positivo e o Kappa de Cohen —
+que corrige a acurácia pelo acerto ao acaso, e é o número que diz se o juiz serve de
+algo.
+
+**O kappa sai separado por procedência do rótulo**, e ler os dois é obrigatório.
+`humano` são casos que alguém leu e decidiu; `construcao` são casos cujo rótulo decorre
+de como foram construídos e foi verificado por código (ver `confirmar_rotulos.py`).
+Concordar com uma regra mecânica não é a mesma coisa que concordar com uma pessoa, e o
+kappa global mistura as duas se a maioria for de um tipo só — daí a separação.
 
 Por que kappa e não só acurácia: com 70% de casos "não alucinou" na calibração, um juiz
 que respondesse NÃO incondicionalmente acertaria 70% — e não pegaria alucinação nenhuma.
@@ -20,9 +25,9 @@ sustentada?" e reprovava paráfrase fiel. Num RAG quase toda resposta é reformu
 a taxa medida no corpus real saiu em 79,5% — quase toda ela falso positivo. Sem este
 passo, aquele número teria ido para o README como se fosse medição.
 
-Casos com `"rascunho": true` no JSONL ainda não foram revisados à mão: são contados à
-parte e NÃO entram nas métricas. O fluxo é gerar rascunhos, revisar rótulo e texto,
-apagar o campo `rascunho` (ou marcar `false`) e rodar de novo.
+Casos com `"rascunho": true` no JSONL não têm rótulo confirmado: são contados à parte e
+NÃO entram nas métricas. O fluxo é gerar rascunhos, passar o `confirmar_rotulos.py`
+(que promove só o que ele consegue verificar) e revisar à mão o que sobrar.
 
 Rode isto sempre que trocar o modelo do juiz ou mexer no prompt — o resultado fica em
 `eval/results/calibracao_juiz.json` e acompanha cada rodada no bloco `config` dos
@@ -52,6 +57,9 @@ RESULTADO = Path(__file__).resolve().parent / "results" / "calibracao_juiz.json"
 #: Landis & Koch (1977), faixa "substancial" 0.61-0.80: o plano de execução fixou o
 #: ponto dentro da faixa onde o erro do juiz deixa de ser da mesma ordem do sinal.
 KAPPA_PISO_PRODUCAO = 0.70
+
+#: Procedencia do rotulo (ver eval/confirmar_rotulos.py).
+HUMANO = "humano"
 
 
 def prompt_sha256(prompt: str) -> str:
@@ -162,12 +170,8 @@ def main() -> int:
     llm = _llm_do_eval()
     print(f"juiz: {juiz_modelo} @ {settings.openai_base_url or 'openai'}")
     print(
-        f"casos: {len(confirmados)} confirmados à mão"
-        + (
-            f" (+{len(rascunhos)} rascunhos pendentes de revisão, fora da conta)"
-            if rascunhos
-            else ""
-        )
+        f"casos: {len(confirmados)} com rótulo confirmado"
+        + (f" (+{len(rascunhos)} em rascunho, fora da conta)" if rascunhos else "")
         + "\n"
     )
 
@@ -186,6 +190,24 @@ def main() -> int:
     m = matriz_de_confusao(rotulos, vereditos)
     taxas = taxas_de_erro(m)
     kappa = kappa_de_cohen(rotulos, vereditos)
+
+    # Kappa por PROCEDÊNCIA do rótulo. Um kappa alto sobre rótulos derivados por
+    # construção diz que o juiz concorda com uma regra mecânica — não que ele
+    # concorda com uma pessoa. As duas coisas são diferentes e o relatório não pode
+    # deixar quem lê confundir uma com a outra (ver eval/confirmar_rotulos.py).
+    por_procedencia: dict[str, dict] = {}
+    for origem in sorted({c.get("procedencia", "humano") for c in confirmados}):
+        idx = [i for i, c in enumerate(confirmados) if c.get("procedencia", "humano") == origem]
+        sub_rot = [rotulos[i] for i in idx]
+        sub_ver = [vereditos[i] for i in idx]
+        sub_m = matriz_de_confusao(sub_rot, sub_ver)
+        sub_k = kappa_de_cohen(sub_rot, sub_ver)
+        por_procedencia[origem] = {
+            "n": len(idx),
+            "kappa": round(sub_k, 4) if sub_k is not None else None,
+            "matriz": sub_m,
+            **{k: round(v, 4) if v is not None else None for k, v in taxas_de_erro(sub_m).items()},
+        }
 
     print("\nmatriz de confusão (positivo = alucinou):")
     print(f"  TP {m['tp']}   FP {m['fp']}   FN {m['fn']}   TN {m['tn']}")
@@ -206,6 +228,18 @@ def main() -> int:
                 f"  abaixo do piso de {KAPPA_PISO_PRODUCAO}: a taxa de alucinação NÃO está\n"
                 "  liberada para produção sem revisão manual — publique com esta ressalva"
             )
+    print("\npor procedência do rótulo:")
+    for origem, bloco in por_procedencia.items():
+        k = f"{bloco['kappa']:.3f}" if bloco["kappa"] is not None else "indefinido"
+        print(f"  {origem:11} n={bloco['n']:3}  kappa={k}")
+    n_humano = por_procedencia.get("humano", {}).get("n", 0)
+    if n_humano < len(confirmados) / 2:
+        print(
+            f"  ATENÇÃO: só {n_humano} de {len(confirmados)} rótulos vieram de revisão\n"
+            "  humana. O kappa global mede sobretudo o acordo do juiz com uma regra\n"
+            "  mecânica de construção, não com uma pessoa — publique a procedência junto."
+        )
+
     if m["fn"]:
         print("\nATENÇÃO: falso negativo é o erro perigoso — a taxa sai boa por omissão.")
 
@@ -219,8 +253,25 @@ def main() -> int:
             "kappa": round(kappa, 4) if kappa is not None else None,
             "matriz": m,
             **{k: round(v, 4) if v is not None else None for k, v in taxas.items()},
+            #: De onde vieram os rótulos contra os quais este kappa foi medido.
+            #: Sem isto o número viaja para o `metricas_*.json` sem dizer se o juiz
+            #: concordou com uma pessoa ou com uma regra de construção.
+            "por_procedencia": por_procedencia,
         },
         "rascunhos_pendentes": len(rascunhos),
+        #: Veredito por caso. A matriz agregada diz QUANTO o juiz erra; só o detalhe
+        #: diz ONDE — e sem ele a análise do padrão de falha exige rodar tudo de novo.
+        #: Não carrega texto do curso: só id, rótulo, veredito e procedência.
+        "vereditos": [
+            {
+                "id": c["id"],
+                "rotulo": r,
+                "juiz": v,
+                "procedencia": c.get("procedencia", HUMANO),
+                "nota": c["nota"],
+            }
+            for c, r, v in zip(confirmados, rotulos, vereditos, strict=True)
+        ],
     }
     RESULTADO.parent.mkdir(exist_ok=True)
     RESULTADO.write_text(json.dumps(bloco, ensure_ascii=False, indent=2), encoding="utf-8")

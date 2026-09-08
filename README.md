@@ -47,11 +47,14 @@ As colunas **não são comparáveis entre si**: corpora de tamanhos muito difere
 A série temporal (3 rodadas na configuração canônica congelada) está no
 [EVALUATION.md §3.5](EVALUATION.md), com gráfico derivado dos `metricas_*.json`.
 
-¹ Verificada à mão: o juiz sinalizou 2 casos, ambos falso positivo (EVALUATION.md 5.4).
-Regra de publicação: a taxa de alucinação só aparece ao lado do **Kappa de Cohen** do
-juiz — `python eval/calibrar_juiz.py` gera matriz de confusão, precisão, recall e
-kappa. Kappa < 0.70 = taxa não liberada para produção sem revisão manual. O conjunto
-de calibração tem 99 casos (33 positivos); a revisão humana dos rascunhos está pendente.
+¹ **Leia com o kappa do juiz ao lado — e ele reinterpreta este 0.00.** Medido em
+2026-09-08 sobre 97 casos (`python eval/calibrar_juiz.py`, juiz `qwen2.5-7b` local):
+**κ = 0.408**, precisão 0.923, **recall 0.364**. O juiz deixa passar 21 dos 33 fatos
+novos injetados, e é cego a duas categorias inteiras — prazo inventado e recomendação
+inventada, ambas com recall **0%**. Então o 0.00 não é evidência de que o sistema não
+alucina: é o que um juiz permissivo produz. Segue verificado à mão (EVALUATION.md 5.4)
+e **não liberado para produção**, porque κ < 0.70. Detalhe e a ressalva de procedência
+dos rótulos em [EVALUATION.md 5.9](EVALUATION.md).
 ² Medição da rodada de 2026-08-24, antes do `_ensure_citation` (EVALUATION.md 5.5) —
 prompt antigo, `qwen2.5-7b` local. A citação **final** daquela rodada foi 1.00
 (44/44) **pós-processada**: 9 respostas (20%) foram consertadas à força pela chain.
@@ -149,9 +152,11 @@ Declaradas para não serem lidas como promessas; detalhes no [EVALUATION.md §7]
 - **Gabarito parcial.** `expected_answer_contains` é consumido (cobertura de
   conteúdo); um campo `reference` que destravaria o context recall do RAGAS foi
   decidido **não** fazer — razões documentadas.
-- **O juiz precisa de kappa.** 99 casos de calibração (33 positivos) aguardam revisão
-  humana; até o kappa sair ≥ 0.70, a taxa de alucinação não está liberada para
-  produção sem revisão manual.
+- **O juiz de alucinação tem recall de 0.364, e o kappa reprova.** κ = 0.408 contra piso
+  de 0.70: a taxa de alucinação não está liberada para produção sem revisão manual. Ele é
+  cego a prazo e recomendação inventados (recall 0% nas duas categorias). Some-se que 91
+  dos 97 rótulos foram confirmados por verificação mecânica e só 6 por leitura humana —
+  o κ dessa fatia mede acordo com uma regra, não com uma pessoa ([5.9](EVALUATION.md)).
 - **p95 acima da meta com o contrato** (3,5s vs 3s) — custo do structured output,
   publicado. O job de eval no CI está pronto atrás de `ENABLE_EVAL` e ligá-lo hoje
   reprova no p95: estado registrado, não silenciado.
@@ -160,10 +165,11 @@ Declaradas para não serem lidas como promessas; detalhes no [EVALUATION.md §7]
 - As duas rodadas antigas (corpus real com 7B local; corpus público pré-contrato) não
   formam série entre si — a série canônica começou em 2026-09-06.
 
-**Próximos passos, em ordem de impacto:** revisar os 99 rascunhos da calibração e
-publicar o kappa do juiz; resolver a latência do contrato (streaming ou prompt mais
-magro) e ligar o eval no CI; re-medir o corpus real com o contrato; um reranker
-multilíngue se o reranking voltar à pauta.
+**Próximos passos, em ordem de impacto:** consertar o juiz, que agora tem número — o
+prompt não cobre prazo nem recomendação (recall 0% nos dois), e a calibração da série
+com `gpt-4o` ainda não foi rodada; resolver a latência do contrato (streaming ou prompt
+mais magro) e ligar o eval no CI; ampliar a fatia de rótulos com procedência humana, que
+hoje são 6; re-medir o corpus real com o contrato.
 
 ## 6. Rodar
 

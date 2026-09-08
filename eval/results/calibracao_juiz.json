@@ -1,0 +1,732 @@
+{
+  "timestamp": "20260908T140123Z",
+  "commit": "8d2cedd",
+  "juiz": {
+    "modelo": "qwen2.5-7b-instruct-1m",
+    "prompt_sha256": "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6",
+    "n_casos": 97,
+    "kappa": 0.4079,
+    "matriz": {
+      "tp": 12,
+      "fp": 1,
+      "fn": 21,
+      "tn": 63
+    },
+    "precisao": 0.9231,
+    "recall": 0.3636,
+    "taxa_falso_positivo": 0.0156,
+    "acuracia": 0.7732,
+    "por_procedencia": {
+      "construcao": {
+        "n": 91,
+        "kappa": 0.3414,
+        "matriz": {
+          "tp": 9,
+          "fp": 1,
+          "fn": 21,
+          "tn": 60
+        },
+        "precisao": 0.9,
+        "recall": 0.3,
+        "taxa_falso_positivo": 0.0164,
+        "acuracia": 0.7582
+      },
+      "humano": {
+        "n": 6,
+        "kappa": 1.0,
+        "matriz": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 0,
+          "tn": 3
+        },
+        "precisao": 1.0,
+        "recall": 1.0,
+        "taxa_falso_positivo": 0.0,
+        "acuracia": 1.0
+      }
+    }
+  },
+  "rascunhos_pendentes": 2,
+  "vereditos": [
+    {
+      "id": "jc-01",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "humano",
+      "nota": "repeticao quase literal"
+    },
+    {
+      "id": "jc-02",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "humano",
+      "nota": "parafrase fiel — o caso que o juiz literal reprova"
+    },
+    {
+      "id": "jc-03",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "humano",
+      "nota": "reordenacao fiel"
+    },
+    {
+      "id": "jc-04",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "humano",
+      "nota": "numeros e empresa inventados — alucinacao obvia"
+    },
+    {
+      "id": "jc-05",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "humano",
+      "nota": "regra plausivel mas ausente — alucinacao sutil"
+    },
+    {
+      "id": "jc-06",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "humano",
+      "nota": "benchmark inventado no meio de conteudo fiel"
+    },
+    {
+      "id": "jc-007",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-001), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-008",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-007), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-009",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-008), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-011",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-010), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-012",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-011), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-013",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-012), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-014",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-013), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-015",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-015), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-016",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-017), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-017",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-018), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-018",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-021), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-019",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-023), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-020",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-025), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-021",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-026), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-022",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-027), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-023",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-028), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-024",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-029), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-025",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-030), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-026",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-031), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-027",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-032), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-029",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-034), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-030",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-035), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-031",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-036), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-032",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-037), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-033",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-038), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-034",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-041), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-035",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-042), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-036",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-043), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-037",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-044), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-038",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-045), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-039",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "resposta real da rodada 2026-09-03 (gs-046), verbatim — ao revisar, confrontar com o faithfulness por item da próxima rodada"
+    },
+    {
+      "id": "jc-040",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-001: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-041",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-007: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-042",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-008: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-043",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-009: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-044",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-010: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-045",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-011: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-046",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-012: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-047",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-013: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-048",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-015: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-049",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-017: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-050",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-018: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-051",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-021: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-052",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-023: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-053",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-025: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-054",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-026: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-055",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-027: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-056",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-028: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-057",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-029: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-058",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-030: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-059",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-031: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-060",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-032: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-061",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-033: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-062",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-034: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-063",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-035: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-064",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-036: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-065",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-037: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-066",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-038: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-067",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-041: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-068",
+      "rotulo": false,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-045: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-069",
+      "rotulo": false,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "paráfrase fiel agressiva de gs-046: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
+    },
+    {
+      "id": "jc-070",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-011: recomendação ausente do contexto (painel com atualização diária e alertas) — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-071",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-001: benchmark numérico ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-072",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-007: número de produtividade ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-073",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-009: duração de ciclo ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-074",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-010: caso/nome ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-075",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-012: recomendação temporal ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-076",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-013: método numérico ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-077",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-015: critério numérico ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-078",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-017: estatística setorial ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-079",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-021: taxa de conversão típica ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-080",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-023: cadência de conteúdo ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-081",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-025: meta numérica ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-082",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-026: empresa/caso ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-083",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-027: atribuição de autoria ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-084",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-028: case e número ausentes do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-085",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-029: projeção numérica ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-086",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-030: meta numérica ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-087",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-031: janela temporal ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-088",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-032: prazo de avaliação ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-089",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-033: empresa exemplo ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-090",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-034: comparativo numérico ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-091",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-035: prática de monitoramento ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-092",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-036: data histórica ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-093",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-037: estatística ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-094",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-038: recomendação contratual ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-095",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-042: autoria/criação ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-096",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-043: restrição ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-097",
+      "rotulo": true,
+      "juiz": false,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-044: referência bibliográfica ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-098",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-045: faixa de referência ausente do contexto — verificado ausente do contexto"
+    },
+    {
+      "id": "jc-099",
+      "rotulo": true,
+      "juiz": true,
+      "procedencia": "construcao",
+      "nota": "fato novo injetado em gs-046: atribuição histórica ausente do contexto — verificado ausente do contexto"
+    }
+  ]
+}

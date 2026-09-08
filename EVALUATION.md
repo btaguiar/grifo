@@ -764,6 +764,79 @@ aqui para não ser esquecida na hora.
 
 ---
 
+### 5.9 O kappa do juiz existe, e ele explica a taxa de alucinação 0.00
+
+**κ = 0.408 sobre 97 casos** (`qwen2.5-7b-instruct-1m`, o juiz da linha de base 3.1),
+abaixo do piso de 0.70. Reproduzir: `python eval/calibrar_juiz.py`; registro completo em
+`eval/results/calibracao_juiz.json`.
+
+| | valor |
+|---|---|
+| Matriz (positivo = alucinou) | TP 12 · FP 1 · FN **21** · TN 63 |
+| Precisão | 0.923 |
+| **Recall** | **0.364** |
+| Taxa de falso positivo | 0.016 |
+| Acurácia | 0.773 |
+| κ de Cohen | **0.408** (moderado) |
+
+**O número que importa é o recall: 0.364.** O juiz deixa passar 21 dos 33 fatos novos
+injetados. E a acurácia de 0.773 é o exemplo didático do motivo de o kappa existir — com
+66% de casos negativos, um juiz que respondesse NÃO a tudo acertaria 66% sem detectar
+nada. Este responde NÃO em 84 de 97 vezes.
+
+**Isso reinterpreta a taxa de alucinação 0.00 das seções 3.1 e 3.4.** Ela não é evidência
+de que o sistema não alucina; é o que um juiz com 36% de recall produz. O 0.00 continua
+correto como medição, e continua verificado à mão (5.4) — mas o mecanismo que o produziu
+agora tem número, e o número diz que ele erra por omissão.
+
+**Onde ele é cego, por tipo de fato injetado:**
+
+| Tipo de fato novo | n | pego | recall |
+|---|---|---|---|
+| Numérico (percentual, benchmark, projeção) | 14 | 7 | 50% |
+| Entidade (empresa, autor, data histórica) | 9 | 4 | 44% |
+| **Temporal** (prazo, cadência, janela) | 5 | 0 | **0%** |
+| **Recomendação** (regra, restrição, prática) | 4 | 0 | **0%** |
+
+O `judge.txt` lista "número, data, nome de empresa ou pessoa, benchmark, **regra ou
+recomendação**". Ele pega parcialmente os primeiros e **não pega nenhum** dos dois
+últimos. Um prazo inventado ("revisar a cada seis meses") e uma regra inventada
+("reajuste anual obrigatório por contrato") passam inteiros — e são justamente o tipo de
+invenção mais plausível num assistente de curso, porque soam como conselho.
+
+#### Procedência dos rótulos — a ressalva que anda junto do número
+
+| Procedência | n | κ | recall |
+|---|---|---|---|
+| `humano` | 6 | 1.000 | 1.00 |
+| `construcao` | 91 | 0.341 | 0.30 |
+
+Apenas 6 rótulos vieram de alguém lendo o caso e decidindo. Os outros 91 foram
+confirmados por `python eval/confirmar_rotulos.py`, que promove o rótulo **que decorre de
+como o caso foi construído** quando ele é mecanicamente verificável: para os injetados, o
+marcador do fato está na resposta e ausente do contexto; para fiéis e paráfrases, nenhum
+número ou nome próprio da resposta falta no contexto. Dois casos não passaram no próprio
+invariante e continuam em rascunho, esperando um humano.
+
+**A limitação disso, dita sem rodeio:** a verificação é lexical. Ela não alcança
+afirmação inventada que use só palavras já presentes no contexto — inverter uma relação,
+trocar causa por consequência, atribuir a A o que o trecho diz de B. Um conjunto assim
+testa o juiz contra fabricação detectável, não contra a distribuição real de erro de um
+LLM, e o κ de 0.341 dessa fatia mede acordo com uma regra mecânica, não com uma pessoa.
+O contraste com o κ = 1.000 dos 6 casos humanos não é bom sinal: é amostra pequena
+demais para significar coisa alguma, e serve só para lembrar que 6 casos eram o que
+sustentava toda a afirmação anterior.
+
+**O que isso destrava e o que não destrava.** Destrava a leitura honesta da taxa de
+alucinação — ela agora vem com o kappa ao lado, como a regra de publicação da 3.2 exige.
+Não destrava o número para produção: κ < 0.70 mantém a taxa dependente de revisão
+manual. Os dois caminhos para subir são independentes e ambos abertos: **um juiz melhor**
+(esta calibração é do 7B local; a da série usa `gpt-4o` e ainda não foi medida — é um
+comando) e **um prompt de juiz que cubra regra e prazo**, que a tabela acima mostra
+serem o buraco.
+
+---
+
 ## 6. Custo
 
 | Item | Medido |
