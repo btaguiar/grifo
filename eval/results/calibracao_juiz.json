@@ -1,35 +1,35 @@
 {
-  "timestamp": "20260908T140123Z",
-  "commit": "8d2cedd",
+  "timestamp": "20260909T194143Z",
+  "commit": "ee32259",
   "juiz": {
-    "modelo": "qwen2.5-7b-instruct-1m",
+    "modelo": "openai/gpt-4o",
     "prompt_sha256": "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6",
     "n_casos": 97,
-    "kappa": 0.4079,
+    "kappa": 0.9054,
     "matriz": {
-      "tp": 12,
-      "fp": 1,
-      "fn": 21,
-      "tn": 63
+      "tp": 29,
+      "fp": 0,
+      "fn": 4,
+      "tn": 64
     },
-    "precisao": 0.9231,
-    "recall": 0.3636,
-    "taxa_falso_positivo": 0.0156,
-    "acuracia": 0.7732,
+    "precisao": 1.0,
+    "recall": 0.8788,
+    "taxa_falso_positivo": 0.0,
+    "acuracia": 0.9588,
     "por_procedencia": {
       "construcao": {
         "n": 91,
-        "kappa": 0.3414,
+        "kappa": 0.8971,
         "matriz": {
-          "tp": 9,
-          "fp": 1,
-          "fn": 21,
-          "tn": 60
+          "tp": 26,
+          "fp": 0,
+          "fn": 4,
+          "tn": 61
         },
-        "precisao": 0.9,
-        "recall": 0.3,
-        "taxa_falso_positivo": 0.0164,
-        "acuracia": 0.7582
+        "precisao": 1.0,
+        "recall": 0.8667,
+        "taxa_falso_positivo": 0.0,
+        "acuracia": 0.956
       },
       "humano": {
         "n": 6,
@@ -507,7 +507,7 @@
     {
       "id": "jc-068",
       "rotulo": false,
-      "juiz": true,
+      "juiz": false,
       "procedencia": "construcao",
       "nota": "paráfrase fiel agressiva de gs-045: sinônimo, reordenação e tom colloquial sem fato novo — o eixo que o juiz não pode reprovar"
     },
@@ -521,7 +521,7 @@
     {
       "id": "jc-070",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-011: recomendação ausente do contexto (painel com atualização diária e alertas) — verificado ausente do contexto"
     },
@@ -542,21 +542,21 @@
     {
       "id": "jc-073",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-009: duração de ciclo ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-074",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-010: caso/nome ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-075",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-012: recomendação temporal ausente do contexto — verificado ausente do contexto"
     },
@@ -570,7 +570,7 @@
     {
       "id": "jc-077",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-015: critério numérico ausente do contexto — verificado ausente do contexto"
     },
@@ -584,14 +584,14 @@
     {
       "id": "jc-079",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-021: taxa de conversão típica ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-080",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-023: cadência de conteúdo ausente do contexto — verificado ausente do contexto"
     },
@@ -612,14 +612,14 @@
     {
       "id": "jc-083",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-027: atribuição de autoria ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-084",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-028: case e número ausentes do contexto — verificado ausente do contexto"
     },
@@ -633,7 +633,7 @@
     {
       "id": "jc-086",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-030: meta numérica ausente do contexto — verificado ausente do contexto"
     },
@@ -647,14 +647,14 @@
     {
       "id": "jc-088",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-032: prazo de avaliação ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-089",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-033: empresa exemplo ausente do contexto — verificado ausente do contexto"
     },
@@ -668,21 +668,21 @@
     {
       "id": "jc-091",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-035: prática de monitoramento ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-092",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-036: data histórica ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-093",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-037: estatística ausente do contexto — verificado ausente do contexto"
     },
@@ -703,14 +703,14 @@
     {
       "id": "jc-096",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-043: restrição ausente do contexto — verificado ausente do contexto"
     },
     {
       "id": "jc-097",
       "rotulo": true,
-      "juiz": false,
+      "juiz": true,
       "procedencia": "construcao",
       "nota": "fato novo injetado em gs-044: referência bibliográfica ausente do contexto — verificado ausente do contexto"
     },

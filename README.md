@@ -4,12 +4,13 @@
 
 [![CI](https://github.com/btaguiar/grifo/actions/workflows/ci.yml/badge.svg)](https://github.com/btaguiar/grifo/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
-![Testes](https://img.shields.io/badge/testes-159-green)
+![Testes](https://img.shields.io/badge/testes-189-green)
 
 > **Status:** pipeline completo com avaliação de ponta a ponta, contrato de saída
-> validado por Pydantic e série temporal de métricas. Aberto e datado: latência acima
-> da meta com o contrato (3,5s vs 3s) e juiz com calibração ampliada pendente de
-> revisão humana. Nenhum número aqui é estimativa: ou foi medido, ou está vazio.
+> validado por Pydantic, série temporal de métricas e juiz de alucinação calibrado
+> (κ = 0.905). Aberto e datado: latência acima da meta com o contrato (3,5s vs 3s), e
+> a alucinação do corpus real segue não sustentada porque um 7B julgou a si mesmo.
+> Nenhum número aqui é estimativa: ou foi medido, ou está vazio.
 
 ---
 
@@ -31,7 +32,7 @@ ao lado. Metodologia, calibração e análise de erro em [EVALUATION.md](EVALUAT
 | Métrica | Denominador | Meta | Corpus real, LLM local | Corpus de exemplo, LLM remoto | Reproduzir |
 |---|---|---|---|---|---|
 | **Taxa de recusa correta** | 11 fora do escopo | > 0.95 | **1.00** (11/11) | **1.00** (11/11) | `python eval/run_eval.py` |
-| **Taxa de alucinação** | respondidas | < 2% | **0.00** (0/44)¹ | **0.00** (0/33)¹ | `python eval/run_eval.py` |
+| **Taxa de alucinação** | respondidas | < 2% | 0.00 (0/44) — não sustentada¹ | **0.00** (0/33)¹ | `python eval/run_eval.py` |
 | **fonte@5** — retrieval puro | 53 em escopo | — | **0.79** | — | `python eval/calibrar_retrieval.py --ablacao` |
 | **Fonte correta nas respondidas** | respondidas | — | **0.82** (36/44) | **0.97** (32/33) | `python eval/run_eval.py` |
 | **Citação espontânea** | respondidas | — | **0.80** (35/44)² | **1.00** (33/33, contrato)³ | `python eval/run_eval.py` |
@@ -47,14 +48,21 @@ As colunas **não são comparáveis entre si**: corpora de tamanhos muito difere
 A série temporal (3 rodadas na configuração canônica congelada) está no
 [EVALUATION.md §3.5](EVALUATION.md), com gráfico derivado dos `metricas_*.json`.
 
-¹ **Leia com o kappa do juiz ao lado — e ele reinterpreta este 0.00.** Medido em
-2026-09-08 sobre 97 casos (`python eval/calibrar_juiz.py`, juiz `qwen2.5-7b` local):
-**κ = 0.408**, precisão 0.923, **recall 0.364**. O juiz deixa passar 21 dos 33 fatos
-novos injetados, e é cego a duas categorias inteiras — prazo inventado e recomendação
-inventada, ambas com recall **0%**. Então o 0.00 não é evidência de que o sistema não
-alucina: é o que um juiz permissivo produz. Segue verificado à mão (EVALUATION.md 5.4)
-e **não liberado para produção**, porque κ < 0.70. Detalhe e a ressalva de procedência
-dos rótulos em [EVALUATION.md 5.9](EVALUATION.md).
+¹ **Cada 0.00 vale o que vale o juiz que o produziu, e os dois juizes são diferentes.**
+Calibração em 97 casos, mesmo prompt, `python eval/calibrar_juiz.py`
+([EVALUATION.md 5.9](EVALUATION.md)):
+
+| Juiz | κ | Recall | Precisão | Vale para |
+|---|---|---|---|---|
+| `openai/gpt-4o` | **0.905** | 0.879 | 1.000 | coluna do corpus de exemplo |
+| `qwen2.5-7b` local | 0.408 | 0.364 | 0.923 | coluna do corpus real |
+
+O `gpt-4o` passa o piso de 0.70, então o **0.00 da terceira coluna está liberado** — é a
+primeira vez neste projeto. O da segunda **não**: aquela rodada é anterior ao
+`EVAL_LLM_MODEL` e o próprio 7B que respondia foi quem julgou, com recall de 0.364 e
+cegueira total a prazo e recomendação inventados. Um juiz assim devolve 0.00 quase
+independentemente do dado. Ressalva que vale para os dois: 91 dos 97 rótulos foram
+confirmados por verificação mecânica e só 6 por leitura humana.
 ² Medição da rodada de 2026-08-24, antes do `_ensure_citation` (EVALUATION.md 5.5) —
 prompt antigo, `qwen2.5-7b` local. A citação **final** daquela rodada foi 1.00
 (44/44) **pós-processada**: 9 respostas (20%) foram consertadas à força pela chain.
@@ -126,6 +134,7 @@ justificou e o link para a medição. Nenhuma veio de opinião.
 | **Reranker desligado** | cross-encoder `ms-marco-MiniLM` (inglês) reordenando português: fonte 77% → 74% **e** +613ms por pergunta | [4.4](EVALUATION.md) |
 | **Resgate léxico com os 3 critérios** (IDF ≥ 6 + ≥ 3 chunks + 70% concentração) | só-IDF comprava 7pp de recall e **destruía a recusa** (82% → 27%); com os três, +6pp de recall sem custo nenhum | [4.4](EVALUATION.md) |
 | **Threshold em 0.45** (partida 0.35) | recusa do gate 9% → 55% com a mesma cobertura e o mesmo acerto de fonte — ganho nos dois eixos, não trade-off | [4.1](EVALUATION.md) |
+| **Juiz nunca num 7B** | mesmo prompt, mesmos 97 casos: `gpt-4o` dá κ 0.905 e recall 0.879; `qwen2.5-7b` dá κ 0.408 e recall 0.364, com cegueira TOTAL a prazo e recomendação inventados | [5.9](EVALUATION.md) |
 | **Juiz binário** (SIM/NÃO, não Likert) | a versão "contém ALGUMA afirmação não sustentada?" reprovava paráfrase fiel e inflava a alucinação para 79,5% — quase todo falso positivo | [3.2](EVALUATION.md) |
 | **BM25 mantido** (o plano de partida mandava cortá-lo) | sozinho vale +9pp de acerto de fonte; com o resgate, cobertura 100% | [4.4](EVALUATION.md) |
 | **Contrato Pydantic em vez de regex** sobre a saída | citação 1.00 espontânea com 0 re-validações; custo publicado: p95 2,58s → 3,53s, +55% tokens de entrada | [3.4](EVALUATION.md) |
@@ -152,11 +161,15 @@ Declaradas para não serem lidas como promessas; detalhes no [EVALUATION.md §7]
 - **Gabarito parcial.** `expected_answer_contains` é consumido (cobertura de
   conteúdo); um campo `reference` que destravaria o context recall do RAGAS foi
   decidido **não** fazer — razões documentadas.
-- **O juiz de alucinação tem recall de 0.364, e o kappa reprova.** κ = 0.408 contra piso
-  de 0.70: a taxa de alucinação não está liberada para produção sem revisão manual. Ele é
-  cego a prazo e recomendação inventados (recall 0% nas duas categorias). Some-se que 91
-  dos 97 rótulos foram confirmados por verificação mecânica e só 6 por leitura humana —
-  o κ dessa fatia mede acordo com uma regra, não com uma pessoa ([5.9](EVALUATION.md)).
+- **Os rótulos da calibração do juiz são quase todos derivados, não lidos.** 91 dos 97
+  foram confirmados por verificação mecânica (`eval/confirmar_rotulos.py`) e só 6 por
+  leitura humana. A verificação é lexical: não alcança invenção feita só com palavras
+  que já estão no contexto — inverter uma relação, trocar causa por consequência. O κ de
+  0.905 mede o juiz contra fabricação **detectável**, não contra a distribuição real de
+  erro de um LLM ([5.9](EVALUATION.md)).
+- **A alucinação da linha de base do corpus real não está sustentada.** Aquela rodada foi
+  julgada pelo próprio `qwen2.5-7b` que respondia (κ = 0.408, recall 0.364) — o restante
+  do que ela mediu segue válido, a linha de alucinação não.
 - **p95 acima da meta com o contrato** (3,5s vs 3s) — custo do structured output,
   publicado. O job de eval no CI está pronto atrás de `ENABLE_EVAL` e ligá-lo hoje
   reprova no p95: estado registrado, não silenciado.
@@ -165,11 +178,11 @@ Declaradas para não serem lidas como promessas; detalhes no [EVALUATION.md §7]
 - As duas rodadas antigas (corpus real com 7B local; corpus público pré-contrato) não
   formam série entre si — a série canônica começou em 2026-09-06.
 
-**Próximos passos, em ordem de impacto:** consertar o juiz, que agora tem número — o
-prompt não cobre prazo nem recomendação (recall 0% nos dois), e a calibração da série
-com `gpt-4o` ainda não foi rodada; resolver a latência do contrato (streaming ou prompt
-mais magro) e ligar o eval no CI; ampliar a fatia de rótulos com procedência humana, que
-hoje são 6; re-medir o corpus real com o contrato.
+**Próximos passos, em ordem de impacto:** resolver a latência do contrato (streaming ou
+prompt mais magro) e ligar o eval no CI; ampliar a fatia de rótulos com procedência
+humana, que hoje são 6 de 97 e é o que faria o κ significar acordo com uma pessoa;
+re-medir o corpus real com o contrato e com juiz `gpt-4o`, que é o que falta para a
+alucinação daquela coluna deixar de ser não sustentada.
 
 ## 6. Rodar
 

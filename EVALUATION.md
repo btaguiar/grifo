@@ -75,7 +75,7 @@ Resultado bruto: `eval/results/eval_20260824T184248Z_bb43a87.json`.
 | Faithfulness | > 0.90 | não medida | RAGAS não instalado |
 | Answer Relevance | > 0.80 | não medida | RAGAS não instalado |
 | **Taxa de recusa correta** | > 0.95 | **1.00** (11/11) | atinge |
-| **Taxa de alucinação** | < 2% | **0.00** (0/44) | atinge — ver 5.4 |
+| **Taxa de alucinação** | < 2% | 0.00 (0/44) | **não sustentada** — juiz com κ 0.408, ver 5.9 |
 | Latência p95 | < 3s | **19,9s** | **falha por 6x** |
 
 Complementares, fora da tabela da SPEC mas necessárias para ler as de cima:
@@ -114,10 +114,10 @@ etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl
 `python eval/calibrar_juiz.py` para reproduzir a calibração — matriz de confusão,
 precisão, recall, taxa de falso positivo e **Kappa de Cohen**, gravados em
 `eval/results/calibracao_juiz.json` e carregados no bloco `config` de cada
-`metricas_*.json`. Ver 5.4 — o juiz ainda produzia falso positivo em dado real com o
-conjunto de 6 casos; a regra de publicação é: **a taxa de alucinação nunca aparece sem
-o kappa do juiz ao lado**, e kappa < 0.70 significa taxa não liberada para produção
-sem revisão manual.
+`metricas_*.json`. A regra de publicação é: **a taxa de alucinação nunca aparece sem o
+kappa do juiz que a produziu ao lado**, e kappa < 0.70 significa taxa não liberada para
+produção sem revisão manual. Medido (5.9): `gpt-4o` dá κ 0.905 e passa; o `qwen2.5-7b`
+local dá κ 0.408 e não — e é ele que julgou a linha de base 3.1.
 
 **A regra de fronteira: elaboração inferida NÃO conta como alucinação.** Esta métrica só
 significa alguma coisa se a linha estiver escrita antes da rotulagem — decidida caso a
@@ -764,76 +764,93 @@ aqui para não ser esquecida na hora.
 
 ---
 
-### 5.9 O kappa do juiz existe, e ele explica a taxa de alucinação 0.00
+### 5.9 O kappa do juiz existe — e o gargalo era o modelo, não o prompt
 
-**κ = 0.408 sobre 97 casos** (`qwen2.5-7b-instruct-1m`, o juiz da linha de base 3.1),
-abaixo do piso de 0.70. Reproduzir: `python eval/calibrar_juiz.py`; registro completo em
-`eval/results/calibracao_juiz.json`.
+O mesmo `JUDGE_PROMPT`, o mesmo conjunto de 97 casos, dois modelos julgando.
+Reproduzir: `python eval/calibrar_juiz.py` (o juiz sai de `EVAL_LLM_MODEL`, caindo para
+`LLM_MODEL`); registro completo em `eval/results/calibracao_juiz.json`.
 
-| | valor |
-|---|---|
-| Matriz (positivo = alucinou) | TP 12 · FP 1 · FN **21** · TN 63 |
-| Precisão | 0.923 |
-| **Recall** | **0.364** |
-| Taxa de falso positivo | 0.016 |
-| Acurácia | 0.773 |
-| κ de Cohen | **0.408** (moderado) |
+| | `qwen2.5-7b-instruct-1m` (local) | `openai/gpt-4o` (juiz da série) |
+|---|---|---|
+| Matriz (positivo = alucinou) | TP 12 · FP 1 · FN **21** · TN 63 | TP 29 · FP 0 · FN 4 · TN 64 |
+| Precisão | 0.923 | **1.000** |
+| Recall | **0.364** | **0.879** |
+| Taxa de falso positivo | 0.016 | **0.000** |
+| Acurácia | 0.773 | 0.959 |
+| **κ de Cohen** | **0.408** — reprova | **0.905** — quase perfeito |
 
-**O número que importa é o recall: 0.364.** O juiz deixa passar 21 dos 33 fatos novos
-injetados. E a acurácia de 0.773 é o exemplo didático do motivo de o kappa existir — com
-66% de casos negativos, um juiz que respondesse NÃO a tudo acertaria 66% sem detectar
-nada. Este responde NÃO em 84 de 97 vezes.
+**O `gpt-4o` passa o piso de 0.70 com folga, e o 7B não chega perto.** Nenhuma linha do
+prompt mudou entre as duas colunas — o SHA-256 é o mesmo, e é para isso que ele existe.
+A diferença é inteiramente de capacidade do modelo.
 
-**Isso reinterpreta a taxa de alucinação 0.00 das seções 3.1 e 3.4.** Ela não é evidência
-de que o sistema não alucina; é o que um juiz com 36% de recall produz. O 0.00 continua
-correto como medição, e continua verificado à mão (5.4) — mas o mecanismo que o produziu
-agora tem número, e o número diz que ele erra por omissão.
+#### O que isso valida e o que invalida
 
-**Onde ele é cego, por tipo de fato injetado:**
+A taxa de alucinação **0.00 das rodadas 3.3, 3.4 e 3.5 está sustentada**: aquelas
+rodadas usaram `EVAL_LLM_MODEL=openai/gpt-4o`, e agora esse juiz tem κ = 0.905 com
+recall 0.879 e zero falso positivo. Pela regra de publicação da 3.2, o número está
+liberado — é a primeira vez que isso vale neste projeto.
 
-| Tipo de fato novo | n | pego | recall |
+A **da linha de base 3.1 não está**. Aquela rodada é anterior ao `EVAL_LLM_MODEL`: quem
+julgou foi o próprio `qwen2.5-7b` que respondia, e é o juiz da coluna da esquerda. Um
+juiz com recall 0.364 responde NÃO em 84 de 97 casos; o 0.00 que ele produz não é
+evidência de ausência de alucinação, é o que um juiz permissivo devolve. A 3.1 continua
+válida no que mediu — recusa, fonte, citação, latência — e a linha de alucinação dela
+precisa ser lida como não sustentada.
+
+Isso também fecha a 5.7 por outro caminho. Lá o auto-julgamento foi identificado como
+falha de método e corrigido com `EVAL_LLM_MODEL`; aqui aparece o tamanho do estrago que
+ele causava, com número.
+
+#### Onde cada juiz é cego
+
+O 7B tem buraco **categórico**, e ele é legível:
+
+| Tipo de fato novo injetado | n | `qwen` pega | `gpt-4o` pega |
 |---|---|---|---|
-| Numérico (percentual, benchmark, projeção) | 14 | 7 | 50% |
-| Entidade (empresa, autor, data histórica) | 9 | 4 | 44% |
-| **Temporal** (prazo, cadência, janela) | 5 | 0 | **0%** |
-| **Recomendação** (regra, restrição, prática) | 4 | 0 | **0%** |
+| Numérico (percentual, benchmark, projeção) | 14 | 7 (50%) | 12 (86%) |
+| Entidade (empresa, autor, data histórica) | 9 | 4 (44%) | 9 (100%) |
+| Temporal (prazo, cadência, janela) | 5 | **0 (0%)** | 4 (80%) |
+| Regra / recomendação / restrição | 4 | **0 (0%)** | 3 (75%) |
 
-O `judge.txt` lista "número, data, nome de empresa ou pessoa, benchmark, **regra ou
-recomendação**". Ele pega parcialmente os primeiros e **não pega nenhum** dos dois
-últimos. Um prazo inventado ("revisar a cada seis meses") e uma regra inventada
-("reajuste anual obrigatório por contrato") passam inteiros — e são justamente o tipo de
-invenção mais plausível num assistente de curso, porque soam como conselho.
+O prompt lista "número, data, nome de empresa ou pessoa, benchmark, **regra ou
+recomendação**". O 7B pega parcialmente os três primeiros e **nenhum** dos dois últimos —
+justamente a invenção mais perigosa num assistente de curso, porque soa como conselho.
+O `gpt-4o` lê a mesma lista e cobre as quatro categorias.
+
+Os 4 falsos negativos do `gpt-4o` são **um de cada categoria** (jc-076, jc-085, jc-087,
+jc-094): disperso, sem padrão. É o que distingue "erra às vezes" de "não enxerga uma
+classe inteira".
+
+#### A mudança de prompt que NÃO foi feita
+
+A leitura dos 0% do 7B sugeria reforçar prazo e recomendação no `judge.txt`. A coluna do
+`gpt-4o` mostra que seria consertar o que não está quebrado: o mesmo texto entrega 80% e
+75% nessas categorias com um modelo capaz. Mexer no prompt agora custaria a recalibração
+das duas colunas e trocaria um número medido por uma hipótese. **A conclusão acionável é
+outra: não usar 7B como juiz.** Fica registrado como decisão, e não como esquecimento.
 
 #### Procedência dos rótulos — a ressalva que anda junto do número
 
-| Procedência | n | κ | recall |
+| Procedência | n | κ (`qwen`) | κ (`gpt-4o`) |
 |---|---|---|---|
-| `humano` | 6 | 1.000 | 1.00 |
-| `construcao` | 91 | 0.341 | 0.30 |
+| `humano` | 6 | 1.000 | 1.000 |
+| `construcao` | 91 | 0.341 | 0.897 |
 
 Apenas 6 rótulos vieram de alguém lendo o caso e decidindo. Os outros 91 foram
 confirmados por `python eval/confirmar_rotulos.py`, que promove o rótulo **que decorre de
-como o caso foi construído** quando ele é mecanicamente verificável: para os injetados, o
-marcador do fato está na resposta e ausente do contexto; para fiéis e paráfrases, nenhum
-número ou nome próprio da resposta falta no contexto. Dois casos não passaram no próprio
-invariante e continuam em rascunho, esperando um humano.
+como o caso foi construído** quando ele é mecanicamente verificável sob a regra de
+fronteira da 3.2: para os injetados, o marcador do fato está na resposta e ausente do
+contexto; para fiéis e paráfrases, nenhum número ou nome próprio da resposta falta no
+contexto. Dois casos não passaram no próprio invariante e continuam em rascunho,
+esperando um humano.
 
-**A limitação disso, dita sem rodeio:** a verificação é lexical. Ela não alcança
-afirmação inventada que use só palavras já presentes no contexto — inverter uma relação,
-trocar causa por consequência, atribuir a A o que o trecho diz de B. Um conjunto assim
-testa o juiz contra fabricação detectável, não contra a distribuição real de erro de um
-LLM, e o κ de 0.341 dessa fatia mede acordo com uma regra mecânica, não com uma pessoa.
-O contraste com o κ = 1.000 dos 6 casos humanos não é bom sinal: é amostra pequena
-demais para significar coisa alguma, e serve só para lembrar que 6 casos eram o que
-sustentava toda a afirmação anterior.
-
-**O que isso destrava e o que não destrava.** Destrava a leitura honesta da taxa de
-alucinação — ela agora vem com o kappa ao lado, como a regra de publicação da 3.2 exige.
-Não destrava o número para produção: κ < 0.70 mantém a taxa dependente de revisão
-manual. Os dois caminhos para subir são independentes e ambos abertos: **um juiz melhor**
-(esta calibração é do 7B local; a da série usa `gpt-4o` e ainda não foi medida — é um
-comando) e **um prompt de juiz que cubra regra e prazo**, que a tabela acima mostra
-serem o buraco.
+**A limitação, dita sem rodeio:** a verificação é lexical. Ela não alcança afirmação
+inventada que use só palavras já presentes no contexto — inverter uma relação, trocar
+causa por consequência, atribuir a A o que o trecho diz de B. Um conjunto assim testa o
+juiz contra fabricação **detectável**, não contra a distribuição real de erro de um LLM.
+O κ = 0.897 da fatia `construcao` mede acordo com uma regra mecânica; ampliar a fatia
+humana é o que faria esse número significar acordo com uma pessoa. Também vale a
+ressalva do n efetivo (§7): são 97 casos sobre 33 contextos distintos.
 
 ---
 
