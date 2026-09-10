@@ -218,3 +218,28 @@ juiz. Com isso a alucinação 0.00 das rodadas julgadas por `gpt-4o` fica susten
 primeira vez, e a da linha de base sobre o corpus real — julgada pelo próprio 7B — passa
 a ser lida como não sustentada. O commit que publicou o 0.408 estendeu essa
 reinterpretação a uma rodada que o `gpt-4o` já tinha julgado; o seguinte corrigiu.
+
+**Abrir a interface achou duas falhas que nenhum teste e nenhuma rodada viam.** A
+primeira pergunta em escopo foi recusada. O retrieval devolvia zero chunks porque
+**todo vetor das três coleções do Qdrant estava zerado** — payload intacto, norma zero,
+todo cosseno 0.0, e o gate do FR-24 recusando tudo em silêncio. Em 06/09 o índice
+estava bom (a rodada daquele dia acertou a fonte em 97% das respondidas); entre as duas
+datas o container caiu com `Exited (255)`. A causa mais provável é esse desligamento
+abrupto, e ela não está provada. A coleção pública foi reingerida e voltou com os mesmos
+scores da rodada de 06/09 até a quarta casa. A segunda falha era de código: com o LM
+Studio, **toda pergunta em escopo devolvia 500**. O instructor pede o JSON por chamada
+de função com `tool_choice` em forma de objeto, e o LM Studio só aceita `none`, `auto` ou
+`required`. O setup "custo zero, nada sai da máquina" estava quebrado desde o contrato
+estruturado, e a série não via porque roda no OpenRouter. Os modos foram medidos contra
+o qwen antes de escolher — `tools` 400, `json` 400, `md_json` 7,9s, `json_schema` 2,8s
+—, e `LLM_STRUCTURED_MODE=json_schema` entrou como escolha explícita. O default continua
+`tools`, e trocar o modo tira a rodada da série.
+
+**A interface ganhou o `cited` que a API já devolvia.** As fontes saem agrupadas por
+aula, e não por trecho (eram duas linhas idênticas "Módulo 2 · Aula 4"), com as citadas
+na resposta separadas das só consultadas. O bloco que desenhava a resposta estava
+copiado em dois lugares e já tinha divergido: a legenda da recusa sumia quando a
+conversa era redesenhada. Virou uma função só, e um teste no `AppTest` do Streamlit —
+que falha na versão anterior — trava isso. O timeout de 30s derrubava a primeira
+pergunta no modelo local (30,3s medidos), e todo erro virava "confira se a API está no
+ar", inclusive o 500 com a API no ar.

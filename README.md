@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/btaguiar/grifo/actions/workflows/ci.yml/badge.svg)](https://github.com/btaguiar/grifo/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
-![Testes](https://img.shields.io/badge/testes-189-green)
+![Testes](https://img.shields.io/badge/testes-203-green)
 
 > **Status:** pipeline completo com avaliação de ponta a ponta, contrato de saída
 > validado por Pydantic, série temporal de métricas e juiz de alucinação calibrado
@@ -210,7 +210,7 @@ Desenvolvimento:
 ```bash
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                # 189 testes, sem serviços externos
+pytest                                # 203 testes, sem serviços externos
 pytest -m integration                 # 4 testes, exigem Qdrant no ar
 python eval/calibrar_retrieval.py     # varreduras de calibração (sem LLM)
 python eval/run_eval.py               # suite completa de avaliação
