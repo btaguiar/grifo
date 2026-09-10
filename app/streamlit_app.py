@@ -21,6 +21,9 @@ import streamlit as st
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
 CURSO = os.environ.get("CURSO_NOME", "Curso Exemplo")
 VIDEO_BASE_URL = os.environ.get("VIDEO_BASE_URL", "")
+#: Era 30s fixo, e a primeira pergunta no setup local (qwen 7B em CPU) levou 30,3s em
+#: 2026-09-10: a UI desistia antes da resposta chegar. Remoto responde em ~3-7s.
+API_TIMEOUT = float(os.environ.get("API_TIMEOUT", "90"))
 
 
 def timestamp_to_seconds(timestamp: str) -> int:
@@ -39,6 +42,94 @@ def video_link(timestamp: str | None) -> str | None:
     return f"{VIDEO_BASE_URL.rstrip('/')}?t={timestamp_to_seconds(timestamp)}"
 
 
+def agrupar_por_aula(sources: list[dict]) -> list[dict]:
+    """Uma linha por aula, não por trecho.
+
+    A API devolve um item por chunk recuperado, e dois chunks da mesma aula viravam
+    duas linhas idênticas "Módulo 2 · Aula 4" na tela. Aqui a aula fica com o melhor
+    score e o timestamp do trecho que o obteve; `cited` vale se QUALQUER trecho dela
+    foi citado. Citadas primeiro, depois por score.
+    """
+    aulas: dict[tuple[str, str], dict] = {}
+    for fonte in sources:
+        chave = (fonte["modulo"], fonte["aula"])
+        atual = aulas.get(chave)
+        if atual is None:
+            aulas[chave] = {**fonte, "cited": bool(fonte.get("cited")), "trechos": 1}
+            continue
+        atual["trechos"] += 1
+        atual["cited"] = atual["cited"] or bool(fonte.get("cited"))
+        if fonte["score"] > atual["score"]:
+            atual["score"] = fonte["score"]
+            atual["timestamp"] = fonte.get("timestamp")
+    return sorted(aulas.values(), key=lambda f: (not f["cited"], -f["score"]))
+
+
+def linha_fonte(fonte: dict) -> str:
+    """Markdown de uma aula na lista de fontes."""
+    linha = f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']} · score `{fonte['score']}`"
+    if fonte.get("trechos", 1) > 1:
+        linha += f" · {fonte['trechos']} trechos"
+    link = video_link(fonte.get("timestamp"))
+    if link:
+        linha += f" · [abrir no minuto {fonte['timestamp']}]({link})"
+    elif fonte.get("timestamp"):
+        linha += f" · referência: {fonte['timestamp']}"
+    return linha
+
+
+def mensagem_de_falha(erro: httpx.HTTPError) -> str:
+    """O que dizer quando a pergunta não volta — sem culpar a peça errada.
+
+    Tudo caía em "confira se a API está no ar", inclusive o 500 de provedor LLM
+    recusando a requisição, com a API perfeitamente no ar.
+    """
+    if isinstance(erro, httpx.TimeoutException):
+        return (
+            f"A resposta passou de {API_TIMEOUT:.0f}s. Com modelo local isso acontece; "
+            "tente de novo ou aumente API_TIMEOUT."
+        )
+    if isinstance(erro, httpx.HTTPStatusError):
+        return (
+            f"A API respondeu com erro {erro.response.status_code}. "
+            "O log dela diz o motivo — em geral, o provedor do LLM."
+        )
+    return "Não consegui falar com o serviço do Grifo. Confira se a API está no ar."
+
+
+def render_resposta(msg: dict, expandir_fontes: bool) -> None:
+    """Desenha uma resposta do assistente — a mesma função para o histórico e a nova.
+
+    Eram dois blocos copiados, e já tinham divergido: a legenda da recusa só aparecia
+    na mensagem nova e sumia quando a conversa era redesenhada.
+    """
+    if not msg["found"]:
+        # FR-63: recusa é uma resposta legítima — destaque amarelo, não vermelho de erro.
+        st.warning(msg["content"])
+        st.caption("Prefiro dizer que não sei a inventar uma resposta.")
+        return
+
+    st.write(msg["content"])
+    aulas = agrupar_por_aula(msg["sources"])
+    citadas = [f for f in aulas if f["cited"]]
+    consultadas = [f for f in aulas if not f["cited"]]
+    with st.expander("Fontes", expanded=expandir_fontes):
+        if not citadas:
+            # Sem `cited` (API anterior ao campo), não há o que separar.
+            for fonte in aulas:
+                st.markdown(linha_fonte(fonte))
+            return
+        st.caption("Citadas na resposta")
+        for fonte in citadas:
+            st.markdown(linha_fonte(fonte))
+        if consultadas:
+            st.caption("Também consultadas, sem citação")
+            for fonte in consultadas:
+                st.markdown(f":gray[{linha_fonte(fonte)}]")
+
+
+st.set_page_config(page_title="Grifo", page_icon="📚")
+
 if "mensagens" not in st.session_state:
     st.session_state.mensagens = []
 if "session_id" not in st.session_state:
@@ -53,24 +144,8 @@ for msg in st.session_state.mensagens:
     with st.chat_message(msg["role"]):
         if msg["role"] == "user":
             st.write(msg["content"])
-            continue
-        if msg["found"]:
-            st.write(msg["content"])
-            with st.expander("Fontes", expanded=False):
-                for fonte in msg["sources"]:
-                    linha = (
-                        f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']} · "
-                        f"score `{fonte['score']}`"
-                    )
-                    link = video_link(fonte.get("timestamp"))
-                    if link:
-                        linha += f" · [abrir no minuto {fonte['timestamp']}]({link})"
-                    elif fonte.get("timestamp"):
-                        linha += f" · referência: {fonte['timestamp']}"
-                    st.markdown(linha)
         else:
-            # FR-63: recusa é uma resposta legítima — destaque amarelo, não vermelho de erro.
-            st.warning(msg["content"])
+            render_resposta(msg, expandir_fontes=False)
 
 pergunta = st.chat_input("Qual é a sua dúvida sobre o curso?")
 
@@ -89,40 +164,20 @@ if pergunta:
                         "session_id": st.session_state.session_id,
                         "curso": CURSO,
                     },
-                    timeout=30.0,
+                    timeout=API_TIMEOUT,
                 )
                 r.raise_for_status()
                 resposta = r.json()
-            except httpx.HTTPError:
+            except httpx.HTTPError as erro:
                 resposta = None
-                st.error(
-                    "Não consegui falar com o serviço do Grifo. "
-                    "Confira se a API está no ar (docker compose up)."
-                )
+                st.error(mensagem_de_falha(erro))
 
         if resposta:
-            if resposta["found"]:
-                st.write(resposta["answer"])
-                with st.expander("Fontes", expanded=True):
-                    for fonte in resposta["sources"]:
-                        linha = (
-                            f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']} · "
-                            f"score `{fonte['score']}`"
-                        )
-                        link = video_link(fonte.get("timestamp"))
-                        if link:
-                            linha += f" · [abrir no minuto {fonte['timestamp']}]({link})"
-                        elif fonte.get("timestamp"):
-                            linha += f" · referência: {fonte['timestamp']}"
-                        st.markdown(linha)
-            else:
-                st.warning(resposta["answer"])
-                st.caption("Prefiro dizer que não sei a inventar uma resposta.")
-            st.session_state.mensagens.append(
-                {
-                    "role": "assistant",
-                    "content": resposta["answer"],
-                    "found": resposta["found"],
-                    "sources": resposta["sources"],
-                }
-            )
+            msg = {
+                "role": "assistant",
+                "content": resposta["answer"],
+                "found": resposta["found"],
+                "sources": resposta["sources"],
+            }
+            render_resposta(msg, expandir_fontes=True)
+            st.session_state.mensagens.append(msg)

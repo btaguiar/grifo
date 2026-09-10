@@ -62,6 +62,8 @@ eval/golden_set.local.jsonl
 # (numeros puros) e versionado, e e o que alimenta o grafico de evolucao por commit.
 eval/results/*.json
 !eval/results/metricas_*.json
+# Calibração do juiz: só números (kappa, matriz) e hashes — sem texto de curso.
+!eval/results/calibracao_juiz.json
 
 # Artefatos de processo interno, nao fazem parte do produto
 docs/superpowers/

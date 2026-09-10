@@ -24,9 +24,39 @@ A maioria dos projetos RAG de portfolio não tem avaliação — mostram uma dem
 
 **Execução.** `python eval/run_eval.py` — roda o pipeline completo sobre o golden set, calcula as métricas RAGAS e as duas métricas próprias, e grava um JSON com timestamp e hash do commit em `eval/results/`.
 
-**Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`. Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
+**Reprodutibilidade.** `temperature=0`, seed fixa, versões pinadas no `pyproject.toml`.
+Resultados versionados no git para render o gráfico de evolução ao longo dos commits.
+Os prompts são arquivos versionados (`src/grifo/generation/prompts/*.txt`) e o SHA-256
+de cada um acompanha o bloco `config` dos `metricas_*.json`: dois resultados com
+números diferentes sempre têm como ser explicados por diferença em `config` —
+incluindo a vírgula de prompt. Um teste unitário trava o hash de referência: mudar
+prompt sem atualizar o hash (decisão explícita) reprova o build.
 
-**Cadência.** Roda no CI a cada push. Regressão em qualquer métrica abaixo da meta reprova o build.
+**Cadência.** O job está escrito em `.github/workflows/ci.yml`, atrás da variável de
+repositório `ENABLE_EVAL` — hoje **desligada**. Ligar: `gh variable set ENABLE_EVAL
+--body true` (exige o secret `OPENAI_API_KEY` com chave da OpenRouter). O job roda na
+configuração de série abaixo e o `eval/gate_regressao.py` reprova o PR se houver
+regressão. Estado atual conhecido: com o contrato Pydantic o p95 anda em ~3,3–3,5s, e
+o teto de 3s do NFR-1 reprova — ligar o job hoje é CI vermelho até a latência ser
+resolvida (streaming ou prompt mais magro); decisão registrada, não surpresa.
+
+**Configuração de série (congelada).** Uma rodada só entra na série temporal com
+`serie: true` — gravado automaticamente quando a configuração é exatamente esta:
+
+| Peça | Valor congelado |
+|---|---|
+| Corpus / golden set | `samples/` + `golden_set.jsonl` (55 itens) |
+| Respondedor | `openai/gpt-4o-mini` via OpenRouter |
+| Juiz | `openai/gpt-4o` |
+| `SCORE_THRESHOLD` / `FINAL_K` | 0.45 / 5 |
+| Reranker / `FORCE_CITATION` | off / off |
+
+Qualquer peça fora disso grava `serie: false`: números comparáveis entre si ou nada —
+é o que as duas rodadas antigas (corpus real com qwen local; corpus público pré-contrato)
+não podiam fazer entre elas. O gate de regressão compara contra a última rodada da
+série: reprova se recusa cair >5pp, alucinação subir >2pp, ou p95 passar de 3000ms
+(absoluto, NFR-1). Gráfico: `python eval/serie_temporal.py` (lê os `metricas_*.json`
+com `serie: true`, gera `docs/serie-temporal.png`).
 
 ---
 
@@ -45,17 +75,25 @@ Resultado bruto: `eval/results/eval_20260824T184248Z_bb43a87.json`.
 | Faithfulness | > 0.90 | não medida | RAGAS não instalado |
 | Answer Relevance | > 0.80 | não medida | RAGAS não instalado |
 | **Taxa de recusa correta** | > 0.95 | **1.00** (11/11) | atinge |
-| **Taxa de alucinação** | < 2% | **0.00** (0/44) | atinge — ver 5.4 |
+| **Taxa de alucinação** | < 2% | 0.00 (0/44) | **não sustentada** — juiz com κ 0.408, ver 5.9 |
 | Latência p95 | < 3s | **19,9s** | **falha por 6x** |
 
 Complementares, fora da tabela da SPEC mas necessárias para ler as de cima:
 
-| Métrica | Medido | Leitura |
-|---|---|---|
-| Taxa de resposta | 0.69 (44/64) | 20 recusas: 11 corretas + **9 falsas** (ver 5.3) |
-| Fonte correta nas respondidas | 0.82 (36/44) | o `expected_source` apareceu nas fontes |
-| Citação nas respondidas | 1.00 | **artificial** — 0.80 espontâneo (ver 5.5) |
-| Tokens totais | 85.500 entrada / 11.429 saída | 1.374 / 220 por resposta |
+| Métrica | Denominador | Medido | Leitura |
+|---|---|---|---|
+| Taxa de resposta | 64 itens | 0.69 (44/64) | 20 recusas: 11 corretas + **9 falsas** (ver 5.3) |
+| fonte@5 (retrieval) | 53 itens em escopo | **0.79** | só retrieval, sem LLM — ver 4.4, configuração recomendada |
+| Fonte correta nas respondidas (end-to-end) | 44 respondidas | **0.82** (36/44) | o `expected_source` apareceu nas fontes da resposta final |
+| Citação espontânea | 44 respondidas | **0.80** (35/44) | citação que veio do modelo, medida antes do `_ensure_citation` (ver 5.5) |
+| Citação final | 44 respondidas | 1.00 (44/44) | **pós-processada** — `_ensure_citation` anexou as 9 que faltavam |
+| Tokens totais | — | 85.500 entrada / 11.429 saída | 1.374 / 220 por resposta |
+
+`fonte@5` e "fonte correta nas respondidas" são métricas **diferentes** com denominadores
+diferentes: a primeira é retrieval puro sobre todo o escopo (53), a segunda é end-to-end
+só sobre o que o sistema respondeu (44). Publicar as duas no mesmo rótulo — como o README
+fazia — infla a leitura: a taxa de resposta de 0.69 faz o denominador end-to-end esconder
+justamente as perguntas que o retrieval não alcançou.
 
 **A recusa em 100% é o resultado central, e o mecanismo importa.** Com threshold em
 0.35 o gate de retrieval sozinho barra apenas 1 das 11 perguntas fora de escopo
@@ -72,9 +110,53 @@ Uma recusa é correta quando a resposta é exatamente a string de recusa e `foun
 
 **Taxa de alucinação** = respostas com ao menos uma afirmação não sustentada pelos chunks recuperados ÷ total de respostas com `found: true`.
 Medida por LLM-as-judge sobre a resposta e os chunks recuperados (o **texto**, não a
-etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl`, 6 casos
-rotulados à mão; rode `python eval/calibrar_juiz.py` para reproduzir. Ver 5.4 — o juiz
-ainda produz falso positivo em dado real, então o número exige inspeção manual.
+etiqueta de citação). O juiz é calibrado contra `eval/judge_calibration.jsonl`; rode
+`python eval/calibrar_juiz.py` para reproduzir a calibração — matriz de confusão,
+precisão, recall, taxa de falso positivo e **Kappa de Cohen**, gravados em
+`eval/results/calibracao_juiz.json` e carregados no bloco `config` de cada
+`metricas_*.json`. A regra de publicação é: **a taxa de alucinação nunca aparece sem o
+kappa do juiz que a produziu ao lado**, e kappa < 0.70 significa taxa não liberada para
+produção sem revisão manual. Medido (5.9): `gpt-4o` dá κ 0.905 e passa; o `qwen2.5-7b`
+local dá κ 0.408 e não — e é ele que julgou a linha de base 3.1.
+
+**A regra de fronteira: elaboração inferida NÃO conta como alucinação.** Esta métrica só
+significa alguma coisa se a linha estiver escrita antes da rotulagem — decidida caso a
+caso durante a revisão, ela mede a inconsistência de quem rotula, não a do juiz. A linha
+é a do próprio `judge.txt`, e vale para o rótulo humano também:
+
+> Conta como alucinação **apenas** a afirmação de um FATO NOVO ausente dos trechos:
+> número, data, nome de pessoa ou empresa, benchmark, regra, prazo ou recomendação.
+> Reformular, resumir, reordenar, explicar com outras palavras ou **enunciar uma
+> consequência que os trechos sustentam** não conta — ainda que o texto não a diga
+> com essas palavras.
+
+O caso difícil está identificado e é do segundo tipo: os 10 itens fiéis com
+`faithfulness` abaixo de 0.80 (listados por `python eval/triagem_calibracao.py`) são
+todos elaboração inferida — "os erros se multiplicam, prejudicando a eficiência",
+"desvalorização do produto e percepção negativa sobre o preço justo". Pela regra acima
+eles são rotulados `alucina: false`, e é por isso que a 5.8 existe: o `faithfulness` do
+RAGAS **pega** esses casos, o juiz próprio não, e as duas métricas são publicadas juntas
+em vez de uma substituir a outra. Mudar esta fronteira invalida os rótulos já feitos e
+exige rerrotular do zero.
+
+**fonte@5 (retrieval)** = itens em escopo cujo `expected_source` apareceu no top-5 do retrieval ÷ total de itens em escopo.
+Sem LLM no caminho — é a métrica que isola o retriever. Reproduzir:
+`python eval/calibrar_retrieval.py --ablacao` (linha "+ resgate léxico", com os defaults
+atuais thr=0.45 e reranker off).
+
+**Fonte correta nas respondidas (end-to-end)** = respostas cujo `expected_source` apareceu entre as fontes retornadas ÷ itens com `found: true`.
+É a métrica da experiência do aluno, mas o denominador exclui as recusas — ler sempre ao
+lado da taxa de resposta. Reproduzir: `python eval/run_eval.py`.
+
+**Cobertura de conteúdo** = média, por item respondido, da fração dos termos de
+`expected_answer_contains` presentes na resposta (normalizando caixa e acento); e a
+proporção de itens com cobertura total.
+O `expected_answer_contains` era trabalho rotulado à mão sem consumidor nenhum — o
+eval sabia se a *aula* estava certa, não se a *resposta* estava. Denominador =
+respondidas dentro do escopo com gabarito: recusa já paga na taxa de resposta.
+Limiar do EVAL_STRICT (0.90) calibrado da primeira rodada medida (0.9545, 2026-09-06,
+n=33) — não a priori — com folga para o ruído conhecido de paráfrase por sinônimo.
+Reproduzir: `python eval/run_eval.py`.
 
 ---
 
@@ -95,8 +177,10 @@ julgando** — modelos diferentes, pelo motivo da 5.7.
 | **Latência p95** | < 3s | **2,58s** | **atinge** |
 
 Complementares: taxa de resposta 0.60 (33/55), fonte correta nas respondidas **0.97**
-(32/33), citação 1.00, 601 tokens de entrada por resposta. As três métricas RAGAS têm
-`n=33` — todos os itens respondidos entraram, nenhum job falhou.
+(32/33), citação final 1.00 (pós-`_ensure_citation` — a **espontânea não foi medida**
+nesta rodada), 601 tokens de entrada por resposta. As três métricas RAGAS têm
+`n=33` — todos os itens respondidos entraram, nenhum job falhou. `fonte@5` de retrieval
+não foi medida neste corpus: com 22 chunks, o número diria pouco.
 
 **A latência atinge a meta, e isso reposiciona o NFR-1.** O projeto vinha registrando
 "falha por 6x" a partir de 19,9s medidos com um 7B local. Com provedor remoto o p95 cai
@@ -118,6 +202,92 @@ que reprova.
 
 Estes números **não substituem** a linha de base da 3.1: corpus diferente, muito menor.
 A comparação direta entre eles não é válida.
+
+---
+
+### 3.4 Contrato de saída Pydantic — 2026-09-06
+
+A borda do LLM foi reescrita (Fase 2 do plano de execução): a saída deixa de ser prosa
+tratada por regex e passa a ser `GrifoAnswer`, validado por Pydantic via instructor
+com retry instruído (`max_retries=2` — erro de validação volta ao modelo). O
+`_ensure_citation` continua no código, desativado por `FORCE_CITATION` (default false).
+Duas rodadas no mesmo setup da 3.3 (`gpt-4o-mini` respondendo, `gpt-4o` julgando,
+corpus público, threshold 0.45):
+
+| Métrica | 3.3 — prosa + regex | A: contrato, force=false | B: contrato, force=true |
+|---|---|---|---|
+| Citação nas respondidas | 1.00 **artificial** (pós-`_ensure_citation`) | **1.00 espontânea** | 1.00 |
+| retry_rate (re-validação do contrato) | — | **0.000** | 0.000 |
+| Fonte correta nas respondidas | 0.97 (32/33) | 0.97 (32/33) | 0.97 (32/33) |
+| Recusa correta | 1.00 | 1.00 | 1.00 |
+| Alucinação (juiz `gpt-4o`) | 0.00 | 0.00 | 0.00 |
+| Faithfulness (RAGAS, n=33) | 0.81 | **0.87** | — (RAGAS desligado) |
+| Cobertura de conteúdo (média / total) | — | **0.95** / 0.94 (n=33) | idem |
+| Latência p95 | **2,58s** | 3,53s | 3,64s |
+| Tokens de entrada por pergunta | 361 | 561 | 561 |
+
+A cobertura de conteúdo foi medida sobre as respostas já gravadas da rodada A (a
+métrica é determinística sobre a resposta e o gabarito — a primeira rodada com ela no
+`metricas_*.json` sai na próxima execução). Os 2 itens sem cobertura total dizem o que
+a métrica existe para dizer: **gs-013** (cobertura 0) responde a definição de ICP
+sem os termos do gabarito ("renovam", "critérios") — resposta mais magra do que a
+aula pede; **gs-028** (0.5) perde "gasto"/"composto" para sinônimos ("paga",
+"cíclico") — conteúdo certo, termo não, o ruído que justifica o limiar ter folga.
+
+**A citação é 1.00 espontânea, com zero re-tentativas.** Em nenhuma das 33 respostas o
+modelo violou o contrato na primeira saída — o par módulo/aula citado existia nos
+trechos recuperados em todas. O 0.80 espontâneo da 5.5 era do prompt antigo com
+`qwen2.5-7b` local no corpus real; não é comparável, e o número que vale para o
+sistema atual é este. A rodada B confirma que `FORCE_CITATION` não teve o que
+consertar (citação já 1.00 sem ele): a flag fica como rede de segurança declarada,
+não como mecanismo.
+
+**A piora de latência é real e publicada como está.** O caminho estruturado troca a
+chamada de chat simples por tool calling, com o schema do contrato viajando em toda
+requisição: +55% de tokens de entrada por pergunta (361 → 561), e o p95 sai de 2,58s
+para 3,53s — acima da meta de 3s. O ganho é a citação deixar de ser artificial e a
+validação de fonte (par módulo/aula recuperado) passar a existir; o custo é tokens e
+latência. O NFR-1 volta a não atingir no corpus público.
+
+**Faithfulness 0.81 → 0.87** com o mesmo juiz: efeito colateral observado, não meta —
+o prompt que descreve o contrato explícito ("use EXCLUSIVAMENTE os trechos", lista de
+citations) parece ter deixado as respostas mais aderentes. Vereditos por item e
+faithfulness por item desta rodada alimentam a reconciliação da 5.8.
+
+Reproduzir: rodada A e B em `eval/results/metricas_20260906T140819Z_3a622f3.json` e
+`metricas_20260906T141109Z_3a622f3.json` (o bloco `config` distingue as duas pelo
+`force_citation`).
+
+---
+
+### 3.5 Série temporal (configuração canônica) — 2026-09-06
+
+Três rodadas na configuração congelada da seção 2, em dois commits do mesmo dia —
+`3a622f3` (contrato) e `a593e0a` (gabarito de resposta). A configuração de série não
+mudou entre eles: o que entrou foram métricas novas, não parâmetros diferentes.
+
+| Rodada | commit | recusa | alucinação | fonte e2e | citação | cobertura (média) | retry | p95 | custo US$ |
+|---|---|---|---|---|---|---|---|---|---|
+| 140819Z | 3a622f3 | 1.00 | 0.00 | 0.97 | 1.00 | 0.95* | 0.000 | 3.527 | 0.0072* |
+| 142856Z | a593e0a | 1.00 | 0.00 | 0.97 | 1.00 | 0.95 | 0.000 | 3.249 | 0.0073 |
+| 190527Z | a593e0a | 1.00 | 0.00 | 0.97 | 1.00 | 0.97 | 0.000 | 3.386 | 0.0073 |
+
+\* Derivado depois da rodada, não gravado por ela: em `3a622f3` a cobertura de conteúdo
+e o `custo_usd` ainda não existiam. A cobertura saiu do `bruto_*.json` daquela rodada
+(a métrica é determinística sobre resposta e gabarito) e o custo, dos `tokens_*_total`
+com a mesma tabela de preços. As duas células **não** estão no `metricas_*.json`
+correspondente, e por isso o gráfico da série começa a cobertura no segundo ponto —
+número derivado à mão fica marcado como tal em vez de virar dado de série.
+
+Métricas de conteúdo estáveis (fonte e citação idênticas nas três; cobertura varia
+0.95–0.97 — `temperature=0` não é determinismo entre chamadas de API), latência
+oscilando 3,2–3,5s sempre acima do teto de 3s. O gráfico da série é gerado dos dados:
+
+![Série temporal do eval na configuração canônica](docs/serie-temporal.png)
+
+Reproduzir: `python eval/serie_temporal.py` — lê só os `metricas_*.json` com
+`serie: true`. O gate contra a última rodada: `python eval/gate_regressao.py` — hoje
+reprova no p95 (3386ms >= 3000ms), que é o estado real do NFR-1 com o contrato.
 
 ---
 
@@ -464,6 +634,12 @@ do melhor chunk a uma frase que o modelo não fundamentou é atribuir fonte a um
 afirmação não-fundamentada — o oposto do ADR 002. Decidir se `_ensure_citation` fica.
 Enquanto ficar, é 0.80 que deve ir para o README, não 1.00.
 
+**Resolvido pela Fase 2 (2026-09-06).** O `_ensure_citation` ficou para trás de
+`FORCE_CITATION` (default false) e a citação passou a sair do modelo sob contrato
+Pydantic validado. No corpus público a citação espontânea medida é **1.00 com zero
+retries** (ver 3.4) — o número desta seção permanece como o registro do comportamento
+antigo no corpus real, ainda não re-medido com o contrato.
+
 ---
 
 ### 5.6 O `pip install` matava a busca vetorial, em silêncio (2026-09-02)
@@ -540,6 +716,146 @@ Foi o que motivou a rodada remota da 3.3.
 
 ---
 
+### 5.8 Juiz próprio × faithfulness do RAGAS — reconciliação item a item
+
+Duas métricas de coisas próximas, e a mais permissiva era a publicada: o juiz próprio
+deu 0.00 na rodada da 3.3 enquanto o `faithfulness` do RAGAS deu 0.81 sobre os mesmos
+33 itens. A divergência documentada vale mais que a convergência forçada — cada uma
+mede uma coisa, e é a discordância que expõe o que cada uma não vê:
+
+- o **juiz próprio** só acusa **fato novo** (número, data, nome, benchmark, regra
+  ausente); reformulação fiel passa. Um modelo que comprime e perde um qualificador no
+  caminho não é pego por ele.
+- o **faithfulness** decompõe a resposta em afirmações e checa cada uma contra o
+  contexto — pega distorção sutil, mas também penaliza parafraseamento agressivo que
+  não inventou nada.
+
+**Método.** A partir da Fase 1 do plano de execução, cada rodada grava o veredito do
+juiz (`alucinou`) e o `ragas_faithfulness` **por item** no JSON completo; a
+reconciliação lista os itens onde os dois discordam — juiz NÃO com faithfulness baixo
+(caso que o juiz próprio deixa passar) e juiz SIM com faithfulness alto (falso
+positivo provável do juiz).
+
+**Primeira reconciliação (rodada 3.4-A, 2026-09-06).** O juiz `gpt-4o` disse NÃO nos
+33 respondidos — alucinação 0.00 — enquanto o faithfulness médio deu 0.87. A média
+esconde onde o juiz próprio é cego: **5 itens com faithfulness < 0.70 aprovados pelo
+juiz**, todos do mesmo tipo — elaboração inferida, sem fato novo duro:
+
+| ID | faithfulness | Juiz | O que o RAGAS pega e o juiz não pega |
+|---|---|---|---|
+| gs-037 | 0.50 | NÃO | "desvalorização do produto e percepção negativa sobre o preço justo" — consequência inferida, ausente do trecho |
+| gs-010 | 0.60 | NÃO | "os erros se multiplicam, prejudicando a eficiência do processo" |
+| gs-011 | 0.67 | NÃO | "acesso imediato às informações necessárias para correção e otimização" |
+| gs-026 | 0.67 | NÃO | "garantir que os leads avancem de forma adequada" |
+| gs-038 | 0.67 | NÃO | "custos podem aumentar e o valor percebido pelo cliente pode mudar" |
+
+Nenhum caso no sentido inverso (juiz SIM com faithfulness alto): o juiz não sinalizou
+nada nesta rodada. A leitura conjunta: a taxa de alucinação 0.00 está correta **para a
+definição dela** (fato novo inventado), mas não cobre distorção por elaboração — os 5
+casos acima são respostas "ok com ressalva", não invenção. É por isso que as duas
+métricas são publicadas juntas em vez de uma substituir a outra.
+
+**Viés de posição: não se aplica, por desenho.** O `JUDGE_PROMPT` é estritamente
+*single-answer*: audita uma resposta contra o contexto, não compara duas respostas
+lado a lado, então não existe ordem a inverter. Se o julgamento um dia passar a ser
+comparativo (ex.: preferência entre respostas de dois modelos), a mitigação obrigatória
+é julgar duas vezes com a ordem invertida e só contar veredito estável — registrada
+aqui para não ser esquecida na hora.
+
+---
+
+### 5.9 O kappa do juiz existe — e o gargalo era o modelo, não o prompt
+
+O mesmo `JUDGE_PROMPT`, o mesmo conjunto de 97 casos, dois modelos julgando.
+Reproduzir: `python eval/calibrar_juiz.py` (o juiz sai de `EVAL_LLM_MODEL`, caindo para
+`LLM_MODEL`); registro completo, com o veredito de cada caso, em
+`eval/results/calibracao_juiz.json`. O arquivo guarda a última calibração — a do
+`gpt-4o`; a do `qwen` está no mesmo arquivo em `git show ee32259:eval/results/calibracao_juiz.json`.
+
+| | `qwen2.5-7b-instruct-1m` (local) | `openai/gpt-4o` (juiz da série) |
+|---|---|---|
+| Matriz (positivo = alucinou) | TP 12 · FP 1 · FN **21** · TN 63 | TP 29 · FP 0 · FN 4 · TN 64 |
+| Precisão | 0.923 | **1.000** |
+| Recall | **0.364** | **0.879** |
+| Taxa de falso positivo | 0.016 | **0.000** |
+| Acurácia | 0.773 | 0.959 |
+| **κ de Cohen** | **0.408** — reprova | **0.905** — quase perfeito |
+
+**O `gpt-4o` passa o piso de 0.70 com folga, e o 7B não chega perto.** Nenhuma linha do
+prompt mudou entre as duas colunas — o SHA-256 é o mesmo, e é para isso que ele existe.
+A diferença é inteiramente de capacidade do modelo.
+
+#### O que isso valida e o que invalida
+
+A taxa de alucinação **0.00 das rodadas 3.3, 3.4 e 3.5 está sustentada**: aquelas
+rodadas usaram `EVAL_LLM_MODEL=openai/gpt-4o`, e agora esse juiz tem κ = 0.905 com
+recall 0.879 e zero falso positivo. Pela regra de publicação da 3.2, o número está
+liberado — é a primeira vez que isso vale neste projeto.
+
+A **da linha de base 3.1 não está**. Aquela rodada é anterior ao `EVAL_LLM_MODEL`: quem
+julgou foi o próprio `qwen2.5-7b` que respondia, e é o juiz da coluna da esquerda. Um
+juiz com recall 0.364 responde NÃO em 84 de 97 casos; o 0.00 que ele produz não é
+evidência de ausência de alucinação, é o que um juiz permissivo devolve. A 3.1 continua
+válida no que mediu — recusa, fonte, citação, latência — e a linha de alucinação dela
+precisa ser lida como não sustentada.
+
+Isso também fecha a 5.7 por outro caminho. Lá o auto-julgamento foi identificado como
+falha de método e corrigido com `EVAL_LLM_MODEL`; aqui aparece o tamanho do estrago que
+ele causava, com número.
+
+#### Onde cada juiz é cego
+
+O 7B tem buraco **categórico**, e ele é legível:
+
+| Tipo de fato novo injetado | n | `qwen` pega | `gpt-4o` pega |
+|---|---|---|---|
+| Numérico (percentual, benchmark, projeção) | 14 | 7 (50%) | 12 (86%) |
+| Entidade (empresa, autor, data histórica) | 9 | 4 (44%) | 9 (100%) |
+| Temporal (prazo, cadência, janela) | 5 | **0 (0%)** | 4 (80%) |
+| Regra / recomendação / restrição | 4 | **0 (0%)** | 3 (75%) |
+
+O prompt lista "número, data, nome de empresa ou pessoa, benchmark, **regra ou
+recomendação**". O 7B pega parcialmente os três primeiros e **nenhum** dos dois últimos —
+justamente a invenção mais perigosa num assistente de curso, porque soa como conselho.
+O `gpt-4o` lê a mesma lista e cobre as quatro categorias.
+
+Os 4 falsos negativos do `gpt-4o` são **um de cada categoria** (jc-076, jc-085, jc-087,
+jc-094): disperso, sem padrão. É o que distingue "erra às vezes" de "não enxerga uma
+classe inteira".
+
+#### A mudança de prompt que NÃO foi feita
+
+A leitura dos 0% do 7B sugeria reforçar prazo e recomendação no `judge.txt`. A coluna do
+`gpt-4o` mostra que seria consertar o que não está quebrado: o mesmo texto entrega 80% e
+75% nessas categorias com um modelo capaz. Mexer no prompt agora custaria a recalibração
+das duas colunas e trocaria um número medido por uma hipótese. **A conclusão acionável é
+outra: não usar 7B como juiz.** Fica registrado como decisão, e não como esquecimento.
+
+#### Procedência dos rótulos — a ressalva que anda junto do número
+
+| Procedência | n | κ (`qwen`) | κ (`gpt-4o`) |
+|---|---|---|---|
+| `humano` | 6 | 1.000 | 1.000 |
+| `construcao` | 91 | 0.341 | 0.897 |
+
+Apenas 6 rótulos vieram de alguém lendo o caso e decidindo. Os outros 91 foram
+confirmados por `python eval/confirmar_rotulos.py`, que promove o rótulo **que decorre de
+como o caso foi construído** quando ele é mecanicamente verificável sob a regra de
+fronteira da 3.2: para os injetados, o marcador do fato está na resposta e ausente do
+contexto; para fiéis e paráfrases, nenhum número ou nome próprio da resposta falta no
+contexto. Dois casos não passaram no próprio invariante e continuam em rascunho,
+esperando um humano.
+
+**A limitação, dita sem rodeio:** a verificação é lexical. Ela não alcança afirmação
+inventada que use só palavras já presentes no contexto — inverter uma relação, trocar
+causa por consequência, atribuir a A o que o trecho diz de B. Um conjunto assim testa o
+juiz contra fabricação **detectável**, não contra a distribuição real de erro de um LLM.
+O κ = 0.897 da fatia `construcao` mede acordo com uma regra mecânica; ampliar a fatia
+humana é o que faria esse número significar acordo com uma pessoa. Também vale a
+ressalva do n efetivo (§7): são 97 casos sobre 33 contextos distintos.
+
+---
+
 ## 6. Custo
 
 | Item | Medido |
@@ -557,4 +873,82 @@ a ser necessária para publicar ou para usar provedor remoto.
 Se migrar para API paga, os números acima dão a conta: 1.374 tokens de entrada por
 pergunta, 1,24M para reindexar o corpus. Confirme os preços vigentes antes de orçar.
 
+Rodada pública (2026-09-03, `gpt-4o-mini` respondendo e `gpt-4o` julgando): 19.834 tokens
+de entrada + 3.220 de saída em 55 perguntas — **US$ 0,0049** pela rodada inteira ao preço
+público da época (US$ 0,15/1M entrada, US$ 0,60/1M saída), ~US$ 0,0001 por pergunta.
+O juiz `gpt-4o` domina esta conta: são 55 julgamentos + 3 métricas RAGAS sobre 33 itens.
+Cálculo derivado dos `tokens_*_total` dos `metricas_*.json`. Esta rodada é anterior ao
+campo `custo_usd`, então o número acima foi calculado à mão com a mesma tabela de preços
+que hoje vive em `config.py`; da rodada 3.4-A em diante o valor vem gravado.
+
+Rodada do contrato (3.4-A, 2026-09-06): 30.850 de entrada + 4.358 de saída — **US$
+0,0072** na geração, ~US$ 0,0001 por pergunta. Os tokens do JUIZ e do RAGAS não entram
+nestes totais (o contador instrumenta a chain, não o avaliador) — o custo real da
+rodada é maior que o da geração, e a diferença é o preço de medir.
+
+Desde a Fase 4 o custo é calculado, não transcrito: campo `custo_usd` nos
+`metricas_*.json`, derivado dos `tokens_*_total` e da tabela `PRECO_POR_1M_TOKENS`
+em `config.py` (preços públicos conferidos em 2026-09-06 — atualizar a data ao
+atualizar preços). Modelo fora da tabela grava `null`: preço não confirmado não vira
+número.
+
 Contador de tokens instrumentado desde o dia 1 (FR-36, NFR-2). Confirmar os preços vigentes na página de pricing da OpenAI antes de publicar qualquer número — eles mudam.
+
+---
+
+## 7. Limitações conhecidas
+
+O que estes números **não** cobrem. Declarado aqui para que nenhuma leitura desta
+página valha mais do que a medição que a sustenta.
+
+- **Sem tracing nem observabilidade de produção.** Nada de LangSmith ou OpenTelemetry:
+  as medições são de avaliação offline, em rodadas. Não existe traçado de requisição
+  real, e a latência medida é a do harness de eval, não a de um aluno às 23h. É o
+  débito mais estrutural — e depende de tráfego real que o projeto não tem.
+- **O `question_log` não tem tráfego real.** São 7 linhas de smoke test, todas da
+  pergunta fora de escopo do bolo de cenoura. Ele grava pergunta, `found`, latência e
+  tokens — mas **não** grava resposta nem chunks recuperados. Não serve de base para
+  golden set e nenhuma métrica aqui sai dele.
+- **Não existe gabarito de resposta COMPLETA — e a decisão foi não fabricar.** O DC-3
+  guarda `expected_source` (consumido por fonte@5 e fonte end-to-end) e
+  `expected_answer_contains` (consumido pela cobertura de conteúdo desde a Fase 3);
+  nenhum item ficou sem consumidor. Um campo `reference` — resposta de referência
+  inteira por item, que destravaria o context recall do RAGAS — exigiria escrever 55
+  respostas à mão (e 64 no corpus real). **Decisão: não adicionar agora.** Duas
+  razões: (1) derivar a referência das próprias respostas do sistema seria avaliar o
+  sistema contra si mesmo; (2) o orçamento de rotulagem manual do projeto está
+  comprometido com a calibração do juiz (Fase 1), que tem prioridade — um juiz
+  calibrado informa mais que um context recall. A linha segue declarada como não
+  medida (ver 5.7).
+- **As duas rodadas versionadas são incomparáveis entre si.** Corpus real (64 itens,
+  6.551 chunks, `qwen2.5-7b` local) contra corpus público (55 itens, 22 chunks,
+  `gpt-4o-mini`/`gpt-4o` remotos): corpora, provedores e tamanhos diferentes. Cada
+  tabela deste documento se compara apenas consigo mesma; série temporal exige a
+  configuração canônica congelada da seção 2.
+- **O job de eval está desligado no CI.** Implementado em `.github/workflows/ci.yml`
+  atrás de `vars.ENABLE_EVAL` (seção 2), com gate de regressão pronto. Ligá-lo hoje
+  reprova no p95 (contrato em ~3,5s contra teto de 3s) — estado registrado, não
+  silenciado.
+- **O kappa do juiz existe, mas 91 dos 97 rótulos são de construção, não de leitura.**
+  O juiz da série (`gpt-4o`) tem κ = 0.905 sobre 97 casos (ver 5.9), o que sustenta a
+  taxa 0.00 das rodadas que ele julgou; o `qwen2.5-7b` fica em 0.408, e a linha de
+  alucinação da 3.1 segue não sustentada. A ressalva é a procedência: só 6 rótulos
+  vieram de alguém lendo o caso, e os outros 91 foram confirmados por verificação
+  **lexical** da construção — que não alcança fabricação feita só com palavras do
+  contexto. O κ da fatia `construcao` mede acordo com uma regra mecânica; ampliar a
+  fatia `humano` é o que o faria medir acordo com uma pessoa. Dois casos (`jc-010`,
+  `jc-028`) não passaram no próprio invariante e esperam revisão humana.
+- **O conjunto de calibração produziria um kappa inflado — corrigido, e a guarda ficou.**
+  `python eval/triagem_calibracao.py` audita os rótulos em vez do juiz. Ele reprovava por
+  duas pistas de **forma**: 61% dos casos positivos terminavam numa frase que abria com
+  fórmula de atribuição ("O material recomenda…") contra 2% dos negativos, e os positivos
+  tinham mediana de 214 chars contra 308. As duas juntas separavam as classes sem ler o
+  contexto — um juiz acertaria pela forma da fabricação, e nenhuma métrica do
+  `calibrar_juiz.py` denunciaria. Os 30 injetados foram reescritos com o fato costurado
+  no meio da resposta e no comprimento dos negativos; hoje o gap é de 2pp e a razão de
+  tamanho 1.05, e a triagem aprova. **A guarda continua rodando**, porque o próximo
+  lote de casos pode reintroduzir a assinatura sem ninguém notar.
+- **O n efetivo do kappa é 33, não 97.** Os 97 casos confirmados cobrem apenas 33
+  contextos distintos: cada contexto aparece até três vezes, uma por família. Kappa supõe
+  itens independentes, e itens que compartilham contexto erram juntos — então o número
+  se publica como "97 casos sobre 33 contextos", nunca como 97 observações independentes.
