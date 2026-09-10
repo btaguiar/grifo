@@ -155,12 +155,13 @@ saíram do código para `.txt` versionados, o SHA-256 de cada um acompanha o blo
 de toda rodada, e um teste trava o hash de referência: mudar prompt passa a exigir
 atualizar o hash, o que torna a mudança decisão explícita em vez de efeito colateral.
 
-**O juiz ganhou a máquina inteira e continua sem número.** Matriz de confusão, precisão,
-recall, taxa de falso positivo e Kappa de Cohen, com piso de 0.70 e registro que
-acompanha cada rodada. O conjunto de calibração foi de 6 para 99 casos — mas 93 estão
-marcados `"rascunho": true`, rótulo proposto e não revisado, e o `calibrar_juiz.py` os
-exclui de propósito. Na prática o kappa hoje sairia sobre os mesmos 6 casos de sempre. O
-que falta é rotulagem humana, não código, e está declarado como tal em vez de contornado.
+**O juiz ganhou a máquina inteira antes de ganhar um número.** Matriz de confusão,
+precisão, recall, taxa de falso positivo e Kappa de Cohen, com piso de 0.70 e registro
+que acompanha cada rodada. O conjunto de calibração foi de 6 para 99 casos — mas 93
+estavam marcados `"rascunho": true`, rótulo proposto e não revisado, e o
+`calibrar_juiz.py` os exclui de propósito. Naquele ponto o kappa sairia sobre os mesmos 6
+casos de sempre. Ficou declarado como falta em vez de contornado; o número veio depois,
+mais abaixo.
 
 **Medir os rótulos, e não só o juiz, mostrou que o kappa sairia inflado.** O
 `calibrar_juiz.py` mede o juiz *contra* os rótulos; ninguém media os rótulos. A triagem
@@ -170,7 +171,7 @@ são mais curtos — mediana de 214 chars contra 308. Duas pistas de *forma* que
 classes sem ler o contexto: um juiz pode acertar pela forma da fabricação, o kappa sobe, e
 nenhuma métrica do relatório denuncia. A triagem também mostrou que os 99 casos cobrem só
 33 contextos distintos, três famílias sobre cada um — kappa supõe itens independentes.
-Ela reprova hoje, e corrigir isso passou a ser pré-condição da rotulagem, não um passo
+Ela reprovou, e corrigir isso passou a ser pré-condição da rotulagem, não um passo
 depois dela.
 
 **Uma reescrita em PowerShell deixou o README ilegível, e o commit seguinte não viu.** O
@@ -181,3 +182,39 @@ BOM e passou ao lado da causa. A assinatura estava nos próprios caracteres — 
 o decodificador que passa adiante os cinco bytes que aquela tabela não define. Ficou na
 branch e não chegou ao `main`. É o mesmo modo de falha que este projeto vem colecionando:
 tudo continua "funcionando", só que errado, e sem erro nenhum para avisar.
+
+**A assinatura de superfície saiu da calibração.** Os 30 casos injetados foram
+reescritos com o fato novo costurado no meio da resposta, sem fórmula de atribuição e no
+comprimento dos negativos. O gap de fórmula caiu de 59pp para 2pp e a razão de tamanho
+foi para 1.05; a triagem aprova. O gerador ficou idempotente — descarta rascunhos,
+preserva o que já foi confirmado —, e a triagem continua no fluxo, porque fabricar em
+série reintroduz a assinatura sem ninguém notar.
+
+**O cliente HTTP era recriado a cada pergunta, e as citações eram descartadas.** O
+cliente OpenAI passou a ser reaproveitado entre requisições; os hooks do instructor, não
+— o `/ask` roda em threadpool, e estado compartilhado trocaria contagem de tokens e
+retries entre requisições concorrentes. O efeito na latência ainda não foi medido. As
+citações que o contrato validava eram jogadas fora antes da resposta: agora cada fonte
+sai com `cited`, e o eval ganhou `fonte_citada_correta_em_respondidas`, que separa o que
+o retrieval trouxe do que a resposta de fato citou.
+
+**A regra de fronteira foi escrita antes da rotulagem, não durante.** Só conta como
+alucinação fato novo ausente dos trechos — número, data, nome, benchmark, regra, prazo
+ou recomendação. Consequência que os trechos sustentam não conta. Decidir isso caso a
+caso durante a revisão faria o kappa medir a inconsistência de quem rotula.
+
+**O kappa existe — e a primeira leitura dele estava errada.** Em vez de fingir revisão
+humana de 93 rascunhos, `eval/confirmar_rotulos.py` confirma o rótulo que decorre da
+construção do caso quando ele é mecanicamente verificável, e recusa o resto. Resultado:
+91 confirmados por construção, 6 por leitura humana, 2 recusados pelo próprio invariante
+e ainda em rascunho. Cada rótulo carrega a `procedencia`, e o kappa sai separado por ela.
+O primeiro juiz medido foi o `qwen2.5-7b` local: κ 0.408, recall 0.364, zero acerto em
+prazo e em recomendação. A leitura óbvia era reforçar essas categorias no prompt do juiz.
+Antes de mexer, a mesma calibração rodou com `gpt-4o`, o juiz da série: **κ 0.905**,
+recall 0.879, precisão 1.000 — mesmo prompt, mesmo SHA-256, mesmos 97 casos. O gargalo
+era o modelo. A mudança de prompt não foi feita, porque consertaria o que não está
+quebrado e trocaria número medido por hipótese; a decisão que ficou é não usar 7B como
+juiz. Com isso a alucinação 0.00 das rodadas julgadas por `gpt-4o` fica sustentada pela
+primeira vez, e a da linha de base sobre o corpus real — julgada pelo próprio 7B — passa
+a ser lida como não sustentada. O commit que publicou o 0.408 estendeu essa
+reinterpretação a uma rodada que o `gpt-4o` já tinha julgado; o seguinte corrigiu.

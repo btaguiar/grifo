@@ -20,7 +20,8 @@
   invariante continua em rascunho. `--aplicar` grava; sem ele, só relata.
 - `gerar_rascunhos_calibracao.py` — gera rascunhos de calibração a partir das respostas
   reais da rodada pública (fiéis verbatim, paráfrases agressivas, fatos injetados com
-  marcador verificado ausente do contexto). Revisão humana é o passo que falta.
+  marcador verificado ausente do contexto). Idempotente: descarta rascunhos e preserva
+  o que já foi confirmado.
 - `triagem_calibracao.py` — audita **os rótulos**, não o juiz: assinatura de superfície
   (a classe positiva se separa sem ler o contexto?), n efetivo (casos ÷ contextos
   distintos), fato novo em paráfrase e positivo tardio. Sem LLM, determinístico.
@@ -49,7 +50,11 @@ casos** — a assinatura volta sozinha quando se fabrica em série.
 
 A triagem também reporta que os 99 casos cobrem só 33 contextos distintos (3 casos por
 contexto, uma família cada): itens que compartilham contexto não são independentes, então
-o kappa se publica como "99 casos sobre 33 contextos".
+o kappa se publica como "97 casos sobre 33 contextos" — os 97 confirmados, que cobrem os
+mesmos 33.
+
+**Estado do kappa:** `gpt-4o` 0.905, `qwen2.5-7b` 0.408, mesmo prompt e mesmos casos
+(EVALUATION.md 5.9). 91 rótulos por construção, 6 humanos, 2 em rascunho.
 
 **Antes de rotular, leia a regra de fronteira** (EVALUATION.md 3.2): elaboração inferida
 não conta como alucinação; só fato novo ausente dos trechos conta. Decidir isso caso a

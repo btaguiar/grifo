@@ -768,7 +768,9 @@ aqui para não ser esquecida na hora.
 
 O mesmo `JUDGE_PROMPT`, o mesmo conjunto de 97 casos, dois modelos julgando.
 Reproduzir: `python eval/calibrar_juiz.py` (o juiz sai de `EVAL_LLM_MODEL`, caindo para
-`LLM_MODEL`); registro completo em `eval/results/calibracao_juiz.json`.
+`LLM_MODEL`); registro completo, com o veredito de cada caso, em
+`eval/results/calibracao_juiz.json`. O arquivo guarda a última calibração — a do
+`gpt-4o`; a do `qwen` está no mesmo arquivo em `git show ee32259:eval/results/calibracao_juiz.json`.
 
 | | `qwen2.5-7b-instruct-1m` (local) | `openai/gpt-4o` (juiz da série) |
 |---|---|---|
@@ -927,17 +929,15 @@ página valha mais do que a medição que a sustenta.
   atrás de `vars.ENABLE_EVAL` (seção 2), com gate de regressão pronto. Ligá-lo hoje
   reprova no p95 (contrato em ~3,5s contra teto de 3s) — estado registrado, não
   silenciado.
-- **O kappa do juiz ainda não existe, e a taxa de alucinação depende disso.** O
-  conjunto de calibração foi de 6 para 99 casos (66 negativos / 33 positivos), mas
-  **93 deles estão marcados `"rascunho": true`** — rótulo proposto, não revisado — e o
-  `calibrar_juiz.py` os exclui da conta de propósito. Na prática o kappa hoje sairia
-  sobre os mesmos 6 casos de sempre, e nenhuma rodada gravou bloco `juiz` (todas com
-  `"juiz": null`). O que existe é a máquina: matriz de confusão, precisão, recall,
-  taxa de falso positivo e kappa de Cohen, com o piso de 0.70 e o registro em
-  `eval/results/calibracao_juiz.json` que acompanha cada rodada. O que falta é a
-  revisão humana dos 93 rascunhos — trabalho de rotulagem, não de código. Enquanto
-  isso, a taxa 0.00 continua **verificada à mão** (ver 5.4), não liberada pelo juiz, e
-  a reconciliação da 5.8 é a evidência mais forte disponível sobre o que ele não vê.
+- **O kappa do juiz existe, mas 91 dos 97 rótulos são de construção, não de leitura.**
+  O juiz da série (`gpt-4o`) tem κ = 0.905 sobre 97 casos (ver 5.9), o que sustenta a
+  taxa 0.00 das rodadas que ele julgou; o `qwen2.5-7b` fica em 0.408, e a linha de
+  alucinação da 3.1 segue não sustentada. A ressalva é a procedência: só 6 rótulos
+  vieram de alguém lendo o caso, e os outros 91 foram confirmados por verificação
+  **lexical** da construção — que não alcança fabricação feita só com palavras do
+  contexto. O κ da fatia `construcao` mede acordo com uma regra mecânica; ampliar a
+  fatia `humano` é o que o faria medir acordo com uma pessoa. Dois casos (`jc-010`,
+  `jc-028`) não passaram no próprio invariante e esperam revisão humana.
 - **O conjunto de calibração produziria um kappa inflado — corrigido, e a guarda ficou.**
   `python eval/triagem_calibracao.py` audita os rótulos em vez do juiz. Ele reprovava por
   duas pistas de **forma**: 61% dos casos positivos terminavam numa frase que abria com
@@ -948,7 +948,7 @@ página valha mais do que a medição que a sustenta.
   no meio da resposta e no comprimento dos negativos; hoje o gap é de 2pp e a razão de
   tamanho 1.05, e a triagem aprova. **A guarda continua rodando**, porque o próximo
   lote de casos pode reintroduzir a assinatura sem ninguém notar.
-- **O n efetivo do kappa é 33, não 99.** Os 99 casos cobrem apenas 33 contextos
-  distintos: cada contexto aparece três vezes, uma por família. Kappa supõe itens
-  independentes, e itens que compartilham contexto erram juntos — então o número se
-  publica como "99 casos sobre 33 contextos", nunca como 99 observações independentes.
+- **O n efetivo do kappa é 33, não 97.** Os 97 casos confirmados cobrem apenas 33
+  contextos distintos: cada contexto aparece até três vezes, uma por família. Kappa supõe
+  itens independentes, e itens que compartilham contexto erram juntos — então o número
+  se publica como "97 casos sobre 33 contextos", nunca como 97 observações independentes.
