@@ -228,6 +228,7 @@ def test_resumo_marca_serie_somente_na_config_canonica(tmp_path, monkeypatch):
             "final_k": 5,
             "rerank_enabled": False,
             "force_citation": False,
+            "llm_structured_mode": "tools",
         }
         base.update(overrides)
         for campo, valor in base.items():
@@ -240,3 +241,4 @@ def test_resumo_marca_serie_somente_na_config_canonica(tmp_path, monkeypatch):
     assert _serie(llm_model="openai/gpt-4o") is False  # trocou o modelo respondedor
     assert _serie(force_citation=True) is False  # pós-processamento ligado
     assert _serie(score_threshold=0.50) is False  # threshold fora do congelado
+    assert _serie(llm_structured_mode="json_schema") is False  # outro formato na requisição

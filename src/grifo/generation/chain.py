@@ -98,7 +98,11 @@ def _default_structured() -> StructuredLLM:
     hooks.on(HookName.PARSE_ERROR, _erro_de_validacao)
     hooks.on(HookName.COMPLETION_RESPONSE, _uso_da_tentativa)
 
-    client = instructor.from_openai(_openai_client(), hooks=hooks)
+    # `tools` é o da série; `json_schema` é o que o LM Studio aceita — ver config.
+    modo = {"tools": instructor.Mode.TOOLS, "json_schema": instructor.Mode.JSON_SCHEMA}
+    client = instructor.from_openai(
+        _openai_client(), hooks=hooks, mode=modo[settings.llm_structured_mode]
+    )
 
     class _InstructorLLM:
         """Chamável que carrega o client — exposto para inspeção e teste de config."""

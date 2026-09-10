@@ -4,7 +4,11 @@ Pinamos `embedding_provider` em cada teste para não depender do .env da máquin
 (o CI e cada dev podem rodar com provedores diferentes).
 """
 
-from grifo.config import settings
+import instructor
+import pytest
+from pydantic import ValidationError
+
+from grifo.config import Settings, settings
 from grifo.generation.chain import _default_structured, _openai_client
 from grifo.retrieval import vector_store
 
@@ -29,6 +33,29 @@ def test_llm_sem_base_url_usa_endpoint_padrao(monkeypatch):
     invoca = _default_structured()
     assert "z.ai" not in str(invoca.client.client.base_url)
     _openai_client.cache_clear()
+
+
+def test_modo_estruturado_padrao_e_tools(monkeypatch):
+    """O modo da série — o que OpenAI e OpenRouter aceitam."""
+    monkeypatch.setattr(settings, "openai_api_key", "chave-teste")
+    monkeypatch.setattr(settings, "llm_structured_mode", "tools")
+    assert _default_structured().client.mode == instructor.Mode.TOOLS
+    _openai_client.cache_clear()
+
+
+def test_modo_json_schema_para_o_lm_studio(monkeypatch):
+    """O LM Studio recusa o `tool_choice` em objeto do modo TOOLS com 400: sem esta
+    troca, o setup local respondia 500 em toda pergunta em escopo."""
+    monkeypatch.setattr(settings, "openai_api_key", "chave-teste")
+    monkeypatch.setattr(settings, "llm_structured_mode", "json_schema")
+    assert _default_structured().client.mode == instructor.Mode.JSON_SCHEMA
+    _openai_client.cache_clear()
+
+
+def test_modo_estruturado_invalido_falha_na_carga():
+    """Valor desconhecido estoura ao ler a config, não na primeira pergunta."""
+    with pytest.raises(ValidationError):
+        Settings(llm_structured_mode="json")
 
 
 def test_embedder_usa_base_url_custom(monkeypatch):

@@ -7,6 +7,7 @@ finais: calibre contra o golden set e registre a calibração em EVALUATION.md.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,7 @@ SERIE_EVAL_LLM_MODEL = "openai/gpt-4o"
 SERIE_SCORE_THRESHOLD = 0.45
 SERIE_FINAL_K = 5
 SERIE_GOLDEN_SET = "golden_set.jsonl"
+SERIE_LLM_STRUCTURED_MODE = "tools"
 
 #: Preço público por 1M tokens (entrada, saída) em US$, conferidos em 2026-09-06 em
 #: openai.com/api/pricing e openrouter.ai/models. Preço muda: ao atualizar, atualize
@@ -69,6 +71,14 @@ class Settings(BaseSettings):
     #: qualquer numero: auto-julgamento infla faithfulness e mascara alucinacao.
     eval_llm_model: str = ""
     llm_temperature: float = 0.0
+    #: Como o instructor pede o JSON do `GrifoAnswer` ao provedor. `tools` (default)
+    #: força a chamada de função com `tool_choice` em forma de objeto; é o modo da
+    #: série e o que OpenAI e OpenRouter aceitam. O LM Studio recusa esse formato
+    #: (400: só aceita "none", "auto" ou "required"), e sem esta chave o setup 100%
+    #: local devolvia 500 em toda pergunta em escopo. `json_schema` usa
+    #: `response_format` com o schema, que o LM Studio suporta — medido em
+    #: 2026-09-10 com qwen2.5-7b: `tools` 400, `json_schema` 2,8s, `md_json` 7,9s.
+    llm_structured_mode: Literal["tools", "json_schema"] = "tools"
 
     # Qdrant
     #: 127.0.0.1, nao `localhost`: no Windows o nome resolve `::1` primeiro e cada

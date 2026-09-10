@@ -35,6 +35,7 @@ from grifo.config import (  # noqa: E402
     SERIE_FINAL_K,
     SERIE_GOLDEN_SET,
     SERIE_LLM_MODEL,
+    SERIE_LLM_STRUCTURED_MODE,
     SERIE_SCORE_THRESHOLD,
     custo_por_tokens,
     settings,
@@ -448,11 +449,14 @@ def _eh_config_de_serie() -> bool:
     """A rodada atual roda na configuração canônica congelada da série?
 
     Qualquer peça fora do congelado (modelo, threshold, reranker, golden set,
-    force_citation) faz a rodada sair com `serie: false` — números comparáveis entre
-    si ou nada. É a mesma regra que impede as duas rodadas antigas de formarem série.
+    force_citation, modo estruturado) faz a rodada sair com `serie: false` — números
+    comparáveis entre si ou nada. É a mesma regra que impede as duas rodadas antigas
+    de formarem série. O modo estruturado entra porque muda o que viaja na requisição
+    (schema como tool ou como response_format), e com isso tokens e latência.
     """
     return (
         settings.llm_model == SERIE_LLM_MODEL
+        and settings.llm_structured_mode == SERIE_LLM_STRUCTURED_MODE
         and (settings.eval_llm_model or settings.llm_model) == SERIE_EVAL_LLM_MODEL
         and settings.score_threshold == SERIE_SCORE_THRESHOLD
         and settings.final_k == SERIE_FINAL_K
@@ -534,6 +538,7 @@ def _salvar(resultado: dict) -> Path:
                     #: Se a citação foi pós-processada (`_ensure_citation`) nesta
                     #: rodada — sem isto, rodada A/B da Fase 2 é indistinguível.
                     "force_citation": settings.force_citation,
+                    "llm_structured_mode": settings.llm_structured_mode,
                     # Hashes dos prompts versionados (Fase 5): dois metricas com
                     # números diferentes sempre têm como ser explicados por
                     # diferença em config — inclusive a vírgula de prompt.
