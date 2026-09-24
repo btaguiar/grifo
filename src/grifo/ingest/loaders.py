@@ -16,6 +16,7 @@ que o slug do arquivo não carrega).
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from collections.abc import Callable
@@ -27,6 +28,11 @@ from pypdf import PdfReader
 
 #: Janela de legendas agrupadas por Document antes do chunking por tamanho.
 _WINDOW_CHARS = 1200
+
+#: Mapa opcional arquivo -> URL da aula, na raiz do corpus. Existe para material
+#: publicado em video: cada aula tem a SUA URL, e uma base unica por curso nao
+#: enderecaria isso. Chave = caminho relativo a raiz, em POSIX.
+MANIFESTO = "fontes.json"
 
 FORMATOS = {
     ".pdf": "pdf",
@@ -87,8 +93,27 @@ def _structure_from(path: Path) -> dict:
     }
 
 
-def _base_metadata(path: Path, curso: str | None) -> dict:
-    return _structure_from(path) | {"curso": curso}
+def _base_metadata(path: Path, curso: str | None, fonte_url: str | None = None) -> dict:
+    return _structure_from(path) | {"curso": curso, "fonte_url": fonte_url}
+
+
+def ler_manifesto(raiz: Path) -> dict[str, str]:
+    """`fontes.json` da raiz do corpus -> {caminho relativo: URL}. Ausente = {}.
+
+    Falha alto em JSON invalido, URL vazia ou esquema fora de http(s): manifesto
+    quebrado produz citacao que nao abre, e citacao que nao abre e pior que
+    citacao ausente (ADR 003).
+    """
+    arquivo = raiz / MANIFESTO
+    if not arquivo.is_file():
+        return {}
+    dados = json.loads(arquivo.read_text(encoding="utf-8"))
+    if not isinstance(dados, dict):
+        raise ValueError(f"{arquivo}: esperado um objeto {{arquivo: url}}")
+    for chave, url in dados.items():
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            raise ValueError(f"{arquivo}: URL invalida em {chave!r}: {url!r}")
+    return dados
 
 
 def load_directory(path: Path, curso: str | None = None) -> list[Document]:
@@ -101,6 +126,7 @@ def load_directory(path: Path, curso: str | None = None) -> list[Document]:
     path = Path(path)
     if not path.is_dir():
         raise NotADirectoryError(f"não é um diretório: {path}")
+    manifesto = ler_manifesto(path)
     docs: list[Document] = []
     pulados: list[str] = []
     for f in sorted(p for p in path.rglob("*") if p.is_file()):
@@ -110,7 +136,7 @@ def load_directory(path: Path, curso: str | None = None) -> list[Document]:
         if _MODULO_RE.match(f.parent.name) is None:
             pulados.append(str(f))
             continue
-        docs.extend(loader(f, curso=curso))
+        docs.extend(loader(f, curso=curso, fonte_url=manifesto.get(f.relative_to(path).as_posix())))
     if pulados:
         print(
             f"aviso: {len(pulados)} arquivo(s) fora da estrutura modulo-<n>-<slug> "
@@ -120,9 +146,9 @@ def load_directory(path: Path, curso: str | None = None) -> list[Document]:
     return docs
 
 
-def load_pdf(path: Path, curso: str | None = None) -> list[Document]:
+def load_pdf(path: Path, curso: str | None = None, fonte_url: str | None = None) -> list[Document]:
     """PDF -> Documents, com `pagina` no metadado."""
-    base = _base_metadata(path, curso)
+    base = _base_metadata(path, curso, fonte_url)
     docs = []
     for i, page in enumerate(PdfReader(str(path)).pages, start=1):
         text = (page.extract_text() or "").strip()
@@ -131,17 +157,17 @@ def load_pdf(path: Path, curso: str | None = None) -> list[Document]:
     return docs
 
 
-def load_vtt(path: Path, curso: str | None = None) -> list[Document]:
+def load_vtt(path: Path, curso: str | None = None, fonte_url: str | None = None) -> list[Document]:
     """WebVTT -> Documents, com `timestamp_inicio` no metadado."""
     cues = []
     for cap in webvtt.read(str(path)):
         line = " ".join(cap.text.split())
         if line:
             cues.append((_hhmmss(cap.start), line))
-    return _window(cues, _base_metadata(path, curso))
+    return _window(cues, _base_metadata(path, curso, fonte_url))
 
 
-def load_srt(path: Path, curso: str | None = None) -> list[Document]:
+def load_srt(path: Path, curso: str | None = None, fonte_url: str | None = None) -> list[Document]:
     """SubRip -> Documents, com `timestamp_inicio` no metadado. Parser próprio."""
     text = path.read_text(encoding="utf-8", errors="replace")
     cues: list[tuple[str, str]] = []
@@ -155,7 +181,7 @@ def load_srt(path: Path, curso: str | None = None) -> list[Document]:
             if cue:
                 cues.append(cue)
             block = []
-    return _window(cues, _base_metadata(path, curso))
+    return _window(cues, _base_metadata(path, curso, fonte_url))
 
 
 def _parse_srt_block(lines: list[str]) -> tuple[str, str] | None:
@@ -272,7 +298,9 @@ def _load_transcript_md(path: Path, base: dict) -> list[Document]:
     return docs
 
 
-def load_markdown(path: Path, curso: str | None = None) -> list[Document]:
+def load_markdown(
+    path: Path, curso: str | None = None, fonte_url: str | None = None
+) -> list[Document]:
     """Markdown -> Documents, usando os headings como estrutura.
 
     Dois formatos: dossiê de mentoria (seccionado por `[HH:MM:SS]`) e Markdown comum
@@ -282,7 +310,7 @@ def load_markdown(path: Path, curso: str | None = None) -> list[Document]:
     citação (a invariante DC-1 pede timestamp ou página).
     """
     text = path.read_text(encoding="utf-8")
-    base = _base_metadata(path, curso)
+    base = _base_metadata(path, curso, fonte_url)
     m = _AULA_HEADING_RE.search(text)
     if m:
         base["aula"] = f"{m.group(1)} - {m.group(2)}"

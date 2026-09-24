@@ -29,6 +29,7 @@ from typing import Any
 
 from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda
 
+from grifo.citation import link_com_timestamp
 from grifo.config import REFUSAL_MESSAGE, settings
 from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT, format_context
 from grifo.generation.schemas import GrifoAnswer, SourceRef, _numero, pares_recuperados
@@ -185,6 +186,12 @@ def _sources(chunks: list[dict], citations: list[SourceRef] | None = None) -> li
             "modulo": c["metadata"]["modulo"],
             "aula": c["metadata"]["aula"],
             "timestamp": c["metadata"].get("timestamp_inicio"),
+            #: Link acionável da aula no minuto do trecho (FR-33/FR-62). `None`
+            #: quando o corpus não declara `fonte_url` — PDF e markdown citam
+            #: por página, e nem todo curso tem o vídeo publicado.
+            "url": link_com_timestamp(
+                c["metadata"].get("fonte_url"), c["metadata"].get("timestamp_inicio")
+            ),
             "score": round(float(c["score"]), 4),
             "cited": (_numero(c["metadata"]["modulo"]), _numero(c["metadata"]["aula"])) in citadas,
         }

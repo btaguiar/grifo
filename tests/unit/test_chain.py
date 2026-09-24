@@ -349,3 +349,32 @@ def test_contrato_rejeitado_nao_tem_caminho_de_contorno():
     )
     with pytest.raises(ValueError, match="contrato violado"):
         chain.invoke({"question": "x", "curso": "C"})
+
+
+# ── FR-33: a fonte sai com link para o minuto da aula ───────────────────────────
+
+
+def _com_url(url: str | None) -> list[dict]:
+    chunk = CHUNKS[0]
+    return [{**chunk, "metadata": {**chunk["metadata"], "fonte_url": url}}]
+
+
+def test_fonte_sai_com_link_no_minuto_do_trecho():
+    """O cliente recebe o link pronto: montar URL não é trabalho de cada consumidor."""
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": _com_url("https://youtu.be/AbC123")},
+        structured=fake_structured(RESP_CITADA),
+    )
+    out = chain.invoke({"question": "como calcular o CAC?", "curso": "C"})
+    assert out["sources"][0]["url"] == "https://youtu.be/AbC123?t=1334"
+
+
+def test_corpus_sem_url_declarada_nao_inventa_link():
+    """PDF, markdown e curso sem vídeo publicado: `url` nulo, referência textual."""
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": _com_url(None)},
+        structured=fake_structured(RESP_CITADA),
+    )
+    out = chain.invoke({"question": "como calcular o CAC?", "curso": "C"})
+    assert out["sources"][0]["url"] is None
+    assert out["sources"][0]["timestamp"] == "00:22:14"

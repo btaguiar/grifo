@@ -243,3 +243,16 @@ conversa era redesenhada. Virou uma função só, e um teste no `AppTest` do Str
 que falha na versão anterior — trava isso. O timeout de 30s derrubava a primeira
 pergunta no modelo local (30,3s medidos), e todo erro virava "confira se a API está no
 ar", inclusive o 500 com a API no ar.
+
+**A citação virava texto porque a URL era uma só para o curso inteiro.** O FR-62 existia
+desde a v1, mas atrás de uma `VIDEO_BASE_URL` global — um player por curso. Material
+publicado em vídeo é o oposto: cada aula tem a sua URL, e por isso a demo mostrava
+"referência: 00:22:14" em vez de um link. A URL passou a ser metadado da aula
+(`fonte_url`, DC-1), vinda de um `fontes.json` opcional na raiz do corpus, e o link com
+minuto é montado num lugar só (`grifo/citation.py`), usado pela chain e pela UI. A API
+devolve `url` pronta em cada fonte: montar link não é trabalho de cada cliente. URL sem
+esquema http(s) reprova a ingestão inteira — citação que não abre é pior que citação
+ausente. A `VIDEO_BASE_URL` continua atendendo quem tem um player único, agora como
+fallback declarado. Nada disso depende de YouTube; é o que permite usar material que já
+está publicado, versionando o mapa de links e não a transcrição.
+
