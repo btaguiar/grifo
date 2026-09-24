@@ -95,3 +95,23 @@ def test_embedder_local_nao_toca_em_api(monkeypatch):
     assert emb is not None
     assert carregado["modelo"] == settings.embedding_model
     vector_store._embedder.cache_clear()
+
+
+# ── CORS: o front Next vive noutra origem ───────────────────────────────────────
+
+
+def test_sem_cors_origins_nenhuma_origem_e_liberada(monkeypatch):
+    """Default fechado: quem usa só a UI servida junto não precisa de CORS, e uma API
+    que gasta token de LLM aberta a qualquer origem é convite para terceiro gastar."""
+    monkeypatch.setattr(settings, "cors_origins", "")
+    assert settings.origens_cors == []
+
+
+def test_cors_origins_aceita_lista_com_espaco(monkeypatch):
+    monkeypatch.setattr(settings, "cors_origins", "http://localhost:3000, https://grifo.app ")
+    assert settings.origens_cors == ["http://localhost:3000", "https://grifo.app"]
+
+
+def test_cors_origins_ignora_entrada_vazia(monkeypatch):
+    monkeypatch.setattr(settings, "cors_origins", "http://localhost:3000,,")
+    assert settings.origens_cors == ["http://localhost:3000"]

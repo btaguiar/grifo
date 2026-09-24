@@ -143,7 +143,8 @@ Diagrama completo e os três ADRs em [ARCHITECTURE.md](ARCHITECTURE.md). Requisi
 com critério de aceite em [SPEC.md](SPEC.md).
 
 **Stack:** Python 3.11 · LangChain (LCEL) · Qdrant · FastAPI · Pydantic + instructor ·
-Streamlit · Docker Compose · GitHub Actions. O LLM e os embeddings entram por qualquer
+Streamlit (UI local) · Next 16 + Tailwind + shadcn/ui (demo pública) · Docker Compose ·
+GitHub Actions. O LLM e os embeddings entram por qualquer
 API compatível com OpenAI, escolhida só por variável de ambiente — nenhum código muda
 entre elas. Três setups em [.env.example](.env.example): **OpenRouter** (uma chave
 para os dois, é o default), **OpenAI direto**, e **100% local** via LM Studio ou
@@ -238,7 +239,10 @@ docker compose run --rm ingest     # indexa o corpus de exemplo
 ```
 
 - API e Swagger: http://127.0.0.1:8000/docs
-- UI de chat: http://127.0.0.1:8501
+- UI de chat (Streamlit, local): http://127.0.0.1:8501
+- Demo pública (Next + shadcn): `cd web && npm install && npm run dev` — veja
+  [web/README.md](web/README.md). É a tela que mostra a resposta citando a aula
+  com link para o minuto do vídeo, e a recusa como estado próprio.
 
 Para rodar sobre as **aulas públicas em vídeo** (corpus maior, com link clicável para o
 minuto da resposta), veja [corpus/aulas-publicas/README.md](corpus/aulas-publicas/README.md):

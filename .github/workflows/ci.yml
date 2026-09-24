@@ -22,13 +22,38 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check src tests eval
+        run: ruff check src tests eval scripts
 
       - name: Formatação
-        run: ruff format --check src tests eval
+        run: ruff format --check src tests eval scripts
 
       - name: Testes unitários
         run: pytest -m "not integration" --cov --cov-report=term-missing
+
+  # A demo publica (web/) e um app Next separado do backend Python. Roda sempre:
+  # build quebrado e a unica coisa que o visitante do portfolio veria.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+        working-directory: web
+
+      - name: Lint
+        run: npm run lint
+        working-directory: web
+
+      - name: Build
+        run: npm run build
+        working-directory: web
 
   # Eval de ponta a ponta na CONFIGURAÇÃO CANÔNICA DA SÉRIE (EVALUATION.md seção 2):
   # corpus samples/, gpt-4o-mini respondendo, gpt-4o julgando, thr=0.45, reranker

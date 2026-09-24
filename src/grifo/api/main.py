@@ -19,6 +19,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from grifo.analytics.question_log import log_question, top_questions
@@ -78,6 +79,19 @@ app = FastAPI(
     ),
     version="0.1.0",
 )
+
+#: O front Next consome esta API de outra origem. A lista sai de CORS_ORIGINS e
+#: é explícita de propósito: `allow_origins=["*"]` combinado com credenciais é
+#: recusado pelo próprio navegador, e liberar tudo num serviço que gasta token
+#: de LLM é convidar terceiro a gastar por você.
+_origens = settings.origens_cors
+if _origens:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origens,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
 
 
 @app.exception_handler(RequestValidationError)
