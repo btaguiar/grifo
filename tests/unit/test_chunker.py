@@ -58,7 +58,7 @@ def test_validacao_falha_alto():
     com_localizador = _md("x.md")
     validate_chunk_metadata(com_localizador)  # não levanta
     sem_localizador = _md("x.md") | {"pagina": None, "timestamp_inicio": None}
-    with pytest.raises(ValueError, match="timestamp_inicio|pagina"):
+    with pytest.raises(ValueError, match=r"timestamp_inicio|pagina"):
         validate_chunk_metadata(sem_localizador)
     incompleto = {k: v for k, v in _md("x.md").items() if k != "curso"}
     with pytest.raises(ValueError, match="curso"):
