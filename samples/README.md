@@ -34,10 +34,18 @@ link para o minuto exato:
 
 ```json
 {
-  "curso-exemplo/modulo-2-metricas/aula-05-funil.vtt": "https://youtu.be/AbC123",
-  "curso-exemplo/modulo-2-metricas/aula-04-cac-e-ltv.md": "https://www.youtube.com/watch?v=DeF456"
+  "curso-exemplo/modulo-2-metricas/aula-05-funil.vtt": {
+    "url": "https://www.youtube.com/watch?v=AbC123",
+    "autor": "Alfredo Soares"
+  },
+  "curso-exemplo/modulo-2-metricas/aula-04-cac-e-ltv.md": "https://youtu.be/DeF456"
 }
 ```
+
+Duas formas por chave: o objeto `{url, autor}` e a URL solta, que nasceu primeiro e
+continua valendo. Com `autor`, a citação sai como `[Módulo 2, Aula 5 — Alfredo
+Soares]` — num corpus de palestra cada aula é de uma pessoa, e de quem é a fala
+importa tanto quanto de onde ela veio.
 
 - A chave é o caminho do arquivo **relativo à raiz**, com barras normais.
 - Arquivo fora do mapa fica sem URL, e isso não é erro: corpus misto é o caso comum.

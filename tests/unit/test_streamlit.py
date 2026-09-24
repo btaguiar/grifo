@@ -191,3 +191,13 @@ def test_agrupamento_mantem_a_url_do_melhor_trecho():
         ]
     )
     assert aulas[0]["url"] == "https://youtu.be/AbC?t=540"
+
+
+def test_linha_da_fonte_mostra_o_autor():
+    linha = linha_fonte({**_fonte("1 - Como Vender", 0.6, True), "autor": "Alfredo Soares"})
+    assert "Alfredo Soares" in linha
+
+
+def test_fonte_sem_autor_nao_deixa_sobra_na_linha():
+    linha = linha_fonte(_fonte("4 - CAC", 0.6, True))
+    assert "_" not in linha.replace("**", "")

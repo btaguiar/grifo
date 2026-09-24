@@ -9,7 +9,7 @@ as métricas signifiquem alguma coisa.
 
 | Arquivo | No git? | Por quê |
 |---|---|---|
-| `fontes.json` | **sim** | o mapa aula → URL; é o que torna o corpus reconstruível |
+| `fontes.json` | **sim** | o mapa aula → URL e autor; é o que torna o corpus reconstruível |
 | `*.vtt` (transcrições) | **não** | conteúdo de terceiros. Link não é licença de redistribuição |
 
 ```bash
@@ -17,6 +17,20 @@ python scripts/baixar_aulas.py                 # legendas automáticas (json3)
 python scripts/baixar_aulas.py --transcrever   # Whisper local nas aulas sem legenda
 pip install -e ".[corpus]"                     # yt-dlp + faster-whisper
 ```
+
+## As aulas e quem as dá
+
+| Aula | Autor |
+|---|---|
+| 1 — Como vender mais e melhor | Alfredo Soares |
+| 2 — Como crescer uma empresa | Bruno Nardon |
+| 3 — Empreender do zero no Brasil | Guilherme Benchimol |
+| 4 — Construir empresa do zero | Tallis Gomes |
+| 5 — Marketing em 2026 | Fernando Miranda |
+| 6 — IA nos negócios em 2026 | João Vitor Chaves |
+
+O autor vem do `fontes.json` e entra na citação: `[Módulo 1, Aula 1 — Alfredo
+Soares]`. Os nomes saem da descrição pública de cada vídeo.
 
 ## Duas armadilhas medidas, para não serem redescobertas
 

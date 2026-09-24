@@ -71,7 +71,10 @@ def agrupar_por_aula(sources: list[dict]) -> list[dict]:
 
 def linha_fonte(fonte: dict) -> str:
     """Markdown de uma aula na lista de fontes."""
-    linha = f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']} · score `{fonte['score']}`"
+    linha = f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']}"
+    if fonte.get("autor"):
+        linha += f" · _{fonte['autor']}_"
+    linha += f" · score `{fonte['score']}`"
     if fonte.get("trechos", 1) > 1:
         linha += f" · {fonte['trechos']} trechos"
     link = fonte.get("url") or video_link(fonte.get("timestamp"))

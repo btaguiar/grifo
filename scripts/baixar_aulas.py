@@ -27,6 +27,11 @@ import tempfile
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from grifo.ingest.loaders import ler_manifesto  # noqa: E402
+
 RAIZ_PADRAO = Path("corpus/aulas-publicas")
 #: Um cue por frase curta agrupada: o chunker junta em janelas maiores depois, e cue
 #: por palavra (o que o json3 entrega) deixaria o VTT ilegível para quem for conferir.
@@ -196,7 +201,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--modelo", default="small", help="modelo do Whisper (tiny|base|small|medium)")
     args = p.parse_args(argv)
 
-    mapa = json.loads((args.raiz / "fontes.json").read_text(encoding="utf-8"))
+    # O parser do manifesto mora no pacote: ele valida URL e autor, e aceita as
+    # duas formas de entrada. Reimplementar aqui seria a terceira cópia da regra.
+    mapa = {caminho: e["url"] for caminho, e in ler_manifesto(args.raiz).items()}
     sem_legenda: list[str] = []
     for caminho, url in sorted(mapa.items()):
         destino = args.raiz / caminho

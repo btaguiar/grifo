@@ -173,3 +173,27 @@ def test_manifesto_que_nao_e_objeto_reprova(vtt_file):
     _manifesto(raiz, [URL])
     with pytest.raises(ValueError, match="objeto"):
         load_directory(raiz)
+
+
+def test_manifesto_aceita_objeto_com_autor(vtt_file):
+    """Num corpus de palestra cada aula é de uma pessoa: o autor é metadado da aula."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): {"url": URL, "autor": "Alfredo Soares"}})
+    docs = [d for d in load_directory(raiz) if d.metadata["arquivo"] == vtt_file.name]
+    assert docs and all(d.metadata["autor"] == "Alfredo Soares" for d in docs)
+    assert all(d.metadata["fonte_url"] == URL for d in docs)
+
+
+def test_manifesto_so_com_url_continua_valendo(vtt_file):
+    """A forma antiga nasceu primeiro e não pode quebrar: autor vira None."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): URL})
+    docs = [d for d in load_directory(raiz) if d.metadata["arquivo"] == vtt_file.name]
+    assert docs and all(d.metadata["autor"] is None for d in docs)
+
+
+def test_autor_vazio_reprova_a_ingestao(vtt_file):
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): {"url": URL, "autor": "  "}})
+    with pytest.raises(ValueError, match="autor invalido"):
+        load_directory(raiz)

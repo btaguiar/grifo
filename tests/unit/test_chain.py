@@ -378,3 +378,32 @@ def test_corpus_sem_url_declarada_nao_inventa_link():
     out = chain.invoke({"question": "como calcular o CAC?", "curso": "C"})
     assert out["sources"][0]["url"] is None
     assert out["sources"][0]["timestamp"] == "00:22:14"
+
+
+def test_fonte_leva_o_autor_da_aula():
+    chunk = CHUNKS[0]
+    com_autor = [{**chunk, "metadata": {**chunk["metadata"], "autor": "Alfredo Soares"}}]
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": com_autor},
+        structured=fake_structured(RESP_CITADA),
+    )
+    out = chain.invoke({"question": "q", "curso": "C"})
+    assert out["sources"][0]["autor"] == "Alfredo Soares"
+
+
+def test_citacao_forcada_inclui_o_autor(monkeypatch):
+    """FORCE_CITATION anexa a citação do melhor chunk — no mesmo formato do prompt."""
+    monkeypatch.setattr(settings, "force_citation", True)
+    chunk = CHUNKS[0]
+    com_autor = [{**chunk, "metadata": {**chunk["metadata"], "autor": "Alfredo Soares"}}]
+    sem_citacao = GrifoAnswer(
+        found=True,
+        answer="O CAC é custo dividido por clientes.",
+        citations=[SourceRef(modulo="2 - Metricas", aula="4 - CAC e LTV")],
+    )
+    chain = build_chain(
+        retriever=lambda s: {**s, "chunks": com_autor},
+        structured=fake_structured(sem_citacao),
+    )
+    out = chain.invoke({"question": "q", "curso": "C"})
+    assert out["answer"].endswith("— Alfredo Soares]")

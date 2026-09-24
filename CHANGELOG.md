@@ -256,3 +256,14 @@ ausente. A `VIDEO_BASE_URL` continua atendendo quem tem um player único, agora 
 fallback declarado. Nada disso depende de YouTube; é o que permite usar material que já
 está publicado, versionando o mapa de links e não a transcrição.
 
+**A citação dizia de onde veio a fala, mas não de quem era.** Num corpus de palestra
+cada aula é de uma pessoa diferente, e `[Módulo 1, Aula 1]` esconde justamente o que o
+aluno quer saber. O autor virou metadado da aula (`autor`, DC-1), declarado no
+`fontes.json` ao lado da URL, e a citação passou a sair `[Módulo 1, Aula 1 — Alfredo
+Soares]`. O prompt de resposta mudou para isso — decisão explícita, com hash de
+referência atualizado no teste que o trava, e a rodada anterior deixa de ser comparável
+a partir daqui. De quebra, a expressão regular que reconhece citação estava duplicada
+na chain e no `run_eval.py`: duas cópias da mesma regra é uma que se esquece de
+atualizar, e a esquecida seria a do eval, que passaria a medir citação boa como
+ausente. Agora mora em `grifo/citation.py`, junto com quem a escreve.
+

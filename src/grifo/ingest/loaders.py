@@ -93,16 +93,29 @@ def _structure_from(path: Path) -> dict:
     }
 
 
-def _base_metadata(path: Path, curso: str | None, fonte_url: str | None = None) -> dict:
-    return _structure_from(path) | {"curso": curso, "fonte_url": fonte_url}
+def _base_metadata(path: Path, curso: str | None, fonte: dict | None = None) -> dict:
+    fonte = fonte or {}
+    return _structure_from(path) | {
+        "curso": curso,
+        "fonte_url": fonte.get("url"),
+        #: Quem dá a aula. Entra na citacao ("[Modulo X, Aula Y - Fulano]"): num
+        #: corpus de palestra o autor muda a cada aula, e saber de QUEM e a fala
+        #: importa tanto quanto saber de onde ela veio.
+        "autor": fonte.get("autor"),
+    }
 
 
-def ler_manifesto(raiz: Path) -> dict[str, str]:
-    """`fontes.json` da raiz do corpus -> {caminho relativo: URL}. Ausente = {}.
+def ler_manifesto(raiz: Path) -> dict[str, dict]:
+    """`fontes.json` da raiz do corpus -> {caminho relativo: {url, autor}}.
 
-    Falha alto em JSON invalido, URL vazia ou esquema fora de http(s): manifesto
-    quebrado produz citacao que nao abre, e citacao que nao abre e pior que
-    citacao ausente (ADR 003).
+    Duas formas aceitas por chave, porque a segunda nasceu depois da primeira:
+
+        "modulo-1/aula-01.vtt": "https://..."                        (so a URL)
+        "modulo-1/aula-01.vtt": {"url": "https://...", "autor": "Fulano"}
+
+    Ausente = {}. Falha alto em JSON invalido, URL vazia ou esquema fora de http(s):
+    manifesto quebrado produz citacao que nao abre, e citacao que nao abre e pior
+    que citacao ausente (ADR 003).
     """
     arquivo = raiz / MANIFESTO
     if not arquivo.is_file():
@@ -110,10 +123,19 @@ def ler_manifesto(raiz: Path) -> dict[str, str]:
     dados = json.loads(arquivo.read_text(encoding="utf-8"))
     if not isinstance(dados, dict):
         raise ValueError(f"{arquivo}: esperado um objeto {{arquivo: url}}")
-    for chave, url in dados.items():
+    normalizado: dict[str, dict] = {}
+    for chave, valor in dados.items():
+        entrada = {"url": valor} if isinstance(valor, str) else valor
+        if not isinstance(entrada, dict):
+            raise ValueError(f"{arquivo}: entrada invalida em {chave!r}: {valor!r}")
+        url = entrada.get("url")
         if not isinstance(url, str) or not url.startswith(("http://", "https://")):
             raise ValueError(f"{arquivo}: URL invalida em {chave!r}: {url!r}")
-    return dados
+        autor = entrada.get("autor")
+        if autor is not None and (not isinstance(autor, str) or not autor.strip()):
+            raise ValueError(f"{arquivo}: autor invalido em {chave!r}: {autor!r}")
+        normalizado[chave] = {"url": url, "autor": autor}
+    return normalizado
 
 
 def load_directory(path: Path, curso: str | None = None) -> list[Document]:
@@ -136,7 +158,7 @@ def load_directory(path: Path, curso: str | None = None) -> list[Document]:
         if _MODULO_RE.match(f.parent.name) is None:
             pulados.append(str(f))
             continue
-        docs.extend(loader(f, curso=curso, fonte_url=manifesto.get(f.relative_to(path).as_posix())))
+        docs.extend(loader(f, curso=curso, fonte=manifesto.get(f.relative_to(path).as_posix())))
     if pulados:
         print(
             f"aviso: {len(pulados)} arquivo(s) fora da estrutura modulo-<n>-<slug> "
@@ -146,9 +168,9 @@ def load_directory(path: Path, curso: str | None = None) -> list[Document]:
     return docs
 
 
-def load_pdf(path: Path, curso: str | None = None, fonte_url: str | None = None) -> list[Document]:
+def load_pdf(path: Path, curso: str | None = None, fonte: dict | None = None) -> list[Document]:
     """PDF -> Documents, com `pagina` no metadado."""
-    base = _base_metadata(path, curso, fonte_url)
+    base = _base_metadata(path, curso, fonte)
     docs = []
     for i, page in enumerate(PdfReader(str(path)).pages, start=1):
         text = (page.extract_text() or "").strip()
@@ -157,17 +179,17 @@ def load_pdf(path: Path, curso: str | None = None, fonte_url: str | None = None)
     return docs
 
 
-def load_vtt(path: Path, curso: str | None = None, fonte_url: str | None = None) -> list[Document]:
+def load_vtt(path: Path, curso: str | None = None, fonte: dict | None = None) -> list[Document]:
     """WebVTT -> Documents, com `timestamp_inicio` no metadado."""
     cues = []
     for cap in webvtt.read(str(path)):
         line = " ".join(cap.text.split())
         if line:
             cues.append((_hhmmss(cap.start), line))
-    return _window(cues, _base_metadata(path, curso, fonte_url))
+    return _window(cues, _base_metadata(path, curso, fonte))
 
 
-def load_srt(path: Path, curso: str | None = None, fonte_url: str | None = None) -> list[Document]:
+def load_srt(path: Path, curso: str | None = None, fonte: dict | None = None) -> list[Document]:
     """SubRip -> Documents, com `timestamp_inicio` no metadado. Parser próprio."""
     text = path.read_text(encoding="utf-8", errors="replace")
     cues: list[tuple[str, str]] = []
@@ -181,7 +203,7 @@ def load_srt(path: Path, curso: str | None = None, fonte_url: str | None = None)
             if cue:
                 cues.append(cue)
             block = []
-    return _window(cues, _base_metadata(path, curso, fonte_url))
+    return _window(cues, _base_metadata(path, curso, fonte))
 
 
 def _parse_srt_block(lines: list[str]) -> tuple[str, str] | None:
@@ -299,7 +321,7 @@ def _load_transcript_md(path: Path, base: dict) -> list[Document]:
 
 
 def load_markdown(
-    path: Path, curso: str | None = None, fonte_url: str | None = None
+    path: Path, curso: str | None = None, fonte: dict | None = None
 ) -> list[Document]:
     """Markdown -> Documents, usando os headings como estrutura.
 
@@ -310,7 +332,7 @@ def load_markdown(
     citação (a invariante DC-1 pede timestamp ou página).
     """
     text = path.read_text(encoding="utf-8")
-    base = _base_metadata(path, curso, fonte_url)
+    base = _base_metadata(path, curso, fonte)
     m = _AULA_HEADING_RE.search(text)
     if m:
         base["aula"] = f"{m.group(1)} - {m.group(2)}"

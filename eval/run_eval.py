@@ -29,6 +29,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from grifo.citation import CITACAO_RE  # noqa: E402
 from grifo.config import (  # noqa: E402
     REFUSAL_MESSAGE,
     SERIE_EVAL_LLM_MODEL,
@@ -47,7 +48,9 @@ from grifo.generation.prompts import JUDGE_PROMPT  # noqa: E402
 GOLDEN_SET = (REPO_ROOT / settings.golden_set).resolve()
 RESULTADOS = Path(__file__).resolve().parent / "results"
 
-_CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
+#: A regra de formato mora em `grifo.citation`: duas cópias é uma que se
+#: esquece de atualizar, e a esquecida aqui mediria citação boa como ausente.
+_CITACAO_RE = CITACAO_RE
 
 META_RECUSA_CORRETA = 0.95
 META_ALUCINACAO = 0.02

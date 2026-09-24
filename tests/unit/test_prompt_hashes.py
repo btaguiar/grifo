@@ -14,8 +14,11 @@ import hashlib
 
 from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT, JUDGE_PROMPT
 
-#: Referência do prompt de resposta (answer_system.txt).
-HASH_ANSWER_SYSTEM = "d211c605f0657713291bb24aae428f7c6553feb4d0705fda432ba22dc81698b2"
+#: Referência do prompt de resposta (answer_system.txt). Trocado em 2026-09-24 para
+#: a citação levar o autor da aula: num corpus de palestra cada aula é de uma
+#: pessoa, e "[Módulo 1, Aula 1]" não diz de quem é a fala. A rodada anterior
+#: (hash d211c605…) não é comparável a partir daqui.
+HASH_ANSWER_SYSTEM = "0b21a0b063a64cb3a22fab7655c67a4cf59c6f2dd19396d6e7174b448bac248b"
 #: Referência do prompt do juiz (judge.txt).
 HASH_JUDGE = "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6"
 
