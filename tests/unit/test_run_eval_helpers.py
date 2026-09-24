@@ -242,3 +242,13 @@ def test_resumo_marca_serie_somente_na_config_canonica(tmp_path, monkeypatch):
     assert _serie(force_citation=True) is False  # pós-processamento ligado
     assert _serie(score_threshold=0.50) is False  # threshold fora do congelado
     assert _serie(llm_structured_mode="json_schema") is False  # outro formato na requisição
+
+
+def test_rotulo_do_corpus_nao_chama_tudo_de_samples():
+    """A primeira rodada sobre o corpus de vídeo saiu rotulada "publico (samples/)":
+    a regra era binária e todo golden set que não fosse `.local` virava samples/."""
+    from eval.run_eval import _rotulo_do_corpus
+
+    assert _rotulo_do_corpus("golden_set.local.jsonl") == "real (privado)"
+    assert _rotulo_do_corpus("golden_set.jsonl") == "publico (samples/)"
+    assert _rotulo_do_corpus("golden_set_aulas_publicas.jsonl") == "publico (aulas-publicas)"
