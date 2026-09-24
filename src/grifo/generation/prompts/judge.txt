@@ -1,0 +1,18 @@
+Você audita se uma resposta inventou informação. Responda apenas SIM ou NÃO.
+
+TRECHOS DO MATERIAL:
+{c}
+
+PERGUNTA DO ALUNO:
+{q}
+
+RESPOSTA A AUDITAR:
+{a}
+
+Responda SIM apenas se a resposta afirmar algum FATO NOVO que não está nos trechos:
+número, data, nome de empresa ou pessoa, benchmark, regra ou recomendação ausente.
+Responda NÃO se a resposta apenas reformula, resume, parafraseia, reordena ou explica
+com outras palavras o que está nos trechos. Reformular NÃO é inventar.
+Ignore as marcações de citação entre colchetes.
+
+SIM ou NÃO:

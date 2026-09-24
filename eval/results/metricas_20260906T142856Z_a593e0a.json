@@ -1,0 +1,42 @@
+{
+  "timestamp": "20260906T142856Z",
+  "commit": "a593e0a",
+  "corpus": "publico (samples/)",
+  "serie": true,
+  "metricas": {
+    "total_itens": 55,
+    "recusa_correta": 1.0,
+    "alucinacao": 0.0,
+    "latency_p95_ms": 3249.3,
+    "taxa_resposta": 0.6,
+    "citacao_em_respondidas": 1.0,
+    "fonte_correta_em_respondidas": 0.9697,
+    "cobertura_conteudo": {
+      "media": 0.9545,
+      "total_em_itens": 0.9394,
+      "n": 33
+    },
+    "tokens_input_total": 30850,
+    "tokens_output_total": 4398,
+    "custo_usd": 0.007266,
+    "retry_rate": 0.0,
+    "ragas": null
+  },
+  "config": {
+    "llm_model": "openai/gpt-4o-mini",
+    "eval_llm_model": "openai/gpt-4o",
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "score_threshold": 0.45,
+    "final_k": 5,
+    "retrieve_k": 20,
+    "rerank_enabled": false,
+    "bm25_rescue_min_idf": 6.0,
+    "golden_set": "golden_set.jsonl",
+    "force_citation": false,
+    "juiz": null,
+    "prompt_sha256": {
+      "answer_system": "d211c605f0657713291bb24aae428f7c6553feb4d0705fda432ba22dc81698b2",
+      "judge": "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6"
+    }
+  }
+}

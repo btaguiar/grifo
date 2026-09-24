@@ -7,6 +7,7 @@ finais: calibre contra o golden set e registre a calibração em EVALUATION.md.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,6 +16,42 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: Texto exato da recusa. Contrato do ADR 002 — não altere sem atualizar os testes.
 REFUSAL_MESSAGE = "Não encontrei isso no material do curso."
+
+# ── Configuração canônica da série temporal (plano de execução, Fase 4) ──────────
+# As duas rodadas versionadas antes da série usavam corpora e provedores diferentes:
+# são dois pontos que não formam série nenhuma. Rodada só entra na série com
+# `serie: true` se rodar EXATAMENTE nesta configuração — mudar qualquer peça é outra
+# medição, não um próximo ponto. Documentada no EVALUATION.md seção 2.
+SERIE_LLM_MODEL = "openai/gpt-4o-mini"
+SERIE_EVAL_LLM_MODEL = "openai/gpt-4o"
+SERIE_SCORE_THRESHOLD = 0.45
+SERIE_FINAL_K = 5
+SERIE_GOLDEN_SET = "golden_set.jsonl"
+SERIE_LLM_STRUCTURED_MODE = "tools"
+
+#: Preço público por 1M tokens (entrada, saída) em US$, conferidos em 2026-09-06 em
+#: openai.com/api/pricing e openrouter.ai/models. Preço muda: ao atualizar, atualize
+#: a data aqui e o §6 do EVALUATION. Modelo fora da tabela → custo None: preço não
+#: confirmado não vira número publicado.
+PRECO_POR_1M_TOKENS: dict[str, tuple[float, float]] = {
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o": (2.50, 10.00),
+    "openai/gpt-4o-mini": (0.15, 0.60),
+    "openai/gpt-4o": (2.50, 10.00),
+}
+
+
+def custo_por_tokens(modelo: str, tokens_entrada: int, tokens_saida: int) -> float | None:
+    """Custo em US$ a partir dos tokens medidos e do preço público do modelo.
+
+    None quando o modelo não está na tabela — estimar com preço de outro modelo é
+    inventar número, e o critério do repositório é publicar ou declarar vazio.
+    """
+    preco = PRECO_POR_1M_TOKENS.get(modelo)
+    if preco is None:
+        return None
+    entrada, saida = preco
+    return round(tokens_entrada / 1e6 * entrada + tokens_saida / 1e6 * saida, 6)
 
 
 class Settings(BaseSettings):
@@ -34,6 +71,14 @@ class Settings(BaseSettings):
     #: qualquer numero: auto-julgamento infla faithfulness e mascara alucinacao.
     eval_llm_model: str = ""
     llm_temperature: float = 0.0
+    #: Como o instructor pede o JSON do `GrifoAnswer` ao provedor. `tools` (default)
+    #: força a chamada de função com `tool_choice` em forma de objeto; é o modo da
+    #: série e o que OpenAI e OpenRouter aceitam. O LM Studio recusa esse formato
+    #: (400: só aceita "none", "auto" ou "required"), e sem esta chave o setup 100%
+    #: local devolvia 500 em toda pergunta em escopo. `json_schema` usa
+    #: `response_format` com o schema, que o LM Studio suporta — medido em
+    #: 2026-09-10 com qwen2.5-7b: `tools` 400, `json_schema` 2,8s, `md_json` 7,9s.
+    llm_structured_mode: Literal["tools", "json_schema"] = "tools"
 
     # Qdrant
     #: 127.0.0.1, nao `localhost`: no Windows o nome resolve `::1` primeiro e cada
@@ -80,6 +125,13 @@ class Settings(BaseSettings):
 
     # Geração
     max_answer_words: int = 200
+    #: O `_ensure_citation` (FR-31 original) anexava a citação do top chunk quando o
+    #: modelo omitia a própria. Medido na rodada de 2026-08-24 (EVALUATION.md 5.5):
+    #: 9 de 44 respostas (20%) foram consertadas assim, e a citação 1.00 publicada
+    #: era artificial. Com o contrato Pydantic (Fase 2) o modelo passou a devolver
+    #: `citations` validadas; a flag fica DESLIGADA por padrão — ligar é rede de
+    #: segurança explícita, nunca o mecanismo principal. Mesmo padrão do reranker.
+    force_citation: bool = False
 
     # API
     api_host: str = "0.0.0.0"
@@ -100,6 +152,10 @@ class Settings(BaseSettings):
     ragas_max_workers: int = 1
     #: Segundos por job do RAGAS. O default dele é 180, apertado para LLM local.
     ragas_timeout: int = 600
+    #: false = pula as métricas RAGAS (as próprias continuam). Rodada de comparação
+    #: A/B (Fase 2) não precisa pagar RAGAS duas vezes — e RAGAS é o bloco mais
+    #: caro e lento da rodada.
+    ragas_enabled: bool = True
 
     # Analytics
     question_log_path: Path = Path("data/processed/question_log.jsonl")

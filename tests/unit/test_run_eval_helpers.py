@@ -33,6 +33,93 @@ def test_taxa_de_recusa_correta():
     assert recusa_correta(itens) == 2 / 3
 
 
+def test_cobertura_conteudo_normaliza_caso_e_acento():
+    """O gabarito casa "Aquisição" com "aquisicao" — paráfrase não pode virar zero."""
+    from eval.run_eval import cobertura_conteudo
+
+    itens = [
+        {
+            "should_answer": True,
+            "found": True,
+            "answer": "O CAC usa o custo TOTAL de aquisição dividido pelos clientes.",
+            "expected_answer_contains": ["custo total de aquisição", "número de clientes"],
+        }
+    ]
+    c = cobertura_conteudo(itens)
+    assert c["media"] == 0.5  # 1 de 2 termos (o segundo está ausente de verdade)
+    assert c["total_em_itens"] == 0.0
+    assert c["n"] == 1
+
+
+def test_cobertura_conteudo_so_conta_respondidas_com_gabarito():
+    """Recusa fora do denominador — quem não respondeu já paga na taxa de resposta."""
+    from eval.run_eval import cobertura_conteudo
+
+    itens = [
+        {  # respondida com gabarito: cobertura total
+            "should_answer": True,
+            "found": True,
+            "answer": "fala de custo total de aquisição",
+            "expected_answer_contains": ["custo total de aquisição"],
+        },
+        {  # recusada (falsa recusa) com gabarito: NÃO entra no denominador
+            "should_answer": True,
+            "found": False,
+            "answer": REFUSAL_MESSAGE,
+            "expected_answer_contains": ["custo total de aquisição"],
+        },
+        {  # fora de escopo: sem gabarito por desenho
+            "should_answer": False,
+            "found": False,
+            "answer": REFUSAL_MESSAGE,
+        },
+    ]
+    c = cobertura_conteudo(itens)
+    assert c == {"media": 1.0, "total_em_itens": 1.0, "n": 1}
+
+
+def test_cobertura_conteudo_sem_alvo_e_none():
+    from eval.run_eval import cobertura_conteudo
+
+    assert cobertura_conteudo([]) is None
+    assert cobertura_conteudo([{"should_answer": False, "found": False}]) is None
+
+
+def test_cobertura_media_e_total_distintos():
+    """A média alta com total baixo é o achado: quase tudo coberto, nunca tudo."""
+    from eval.run_eval import cobertura_conteudo
+
+    itens = [
+        {
+            "should_answer": True,
+            "found": True,
+            "answer": "a b",
+            "expected_answer_contains": ["a", "b"],
+        },
+        {
+            "should_answer": True,
+            "found": True,
+            "answer": "a",
+            "expected_answer_contains": ["a", "b"],
+        },
+        {
+            "should_answer": True,
+            "found": True,
+            "answer": "a",
+            "expected_answer_contains": ["a", "b"],
+        },
+        {
+            "should_answer": True,
+            "found": True,
+            "answer": "a",
+            "expected_answer_contains": ["a", "b"],
+        },
+    ]
+    c = cobertura_conteudo(itens)
+    assert c["media"] == 0.625  # 1.0, 0.5, 0.5, 0.5
+    assert c["total_em_itens"] == 0.25  # só 1 de 4 cobre tudo
+
+
 def test_fonte_esperada_acerta_por_prefixo_numerico():
     from eval.run_eval import fonte_bate
 
@@ -112,3 +199,46 @@ def test_resumo_versionado_recusa_NaN(tmp_path, monkeypatch):
     monkeypatch.setattr(run_eval.settings, "golden_set", Path("eval/golden_set.jsonl"))
     with pytest.raises(ValueError):
         run_eval._salvar({"metricas": {"faithfulness": float("nan")}})
+
+
+def test_resumo_marca_serie_somente_na_config_canonica(tmp_path, monkeypatch):
+    """Fase 4: rodada fora da configuração congelada sai com serie: false.
+
+    Sem a marca, a rodada com gpt-4o (juiz mais caro) seria lida como próximo ponto
+    da série produzida com gpt-4o-mini — comparação inválida sem ninguém ver.
+    """
+    import json
+
+    from eval import run_eval
+
+    from grifo.config import (
+        SERIE_LLM_MODEL,
+        SERIE_SCORE_THRESHOLD,
+    )
+
+    monkeypatch.setattr(run_eval, "RESULTADOS", tmp_path)
+    monkeypatch.setattr(run_eval.settings, "golden_set", Path("eval/golden_set.jsonl"))
+    monkeypatch.setattr(run_eval.settings, "curso_nome", "Escola Secreta")
+
+    def _serie(**overrides):
+        base = {
+            "llm_model": SERIE_LLM_MODEL,
+            "eval_llm_model": "openai/gpt-4o",
+            "score_threshold": SERIE_SCORE_THRESHOLD,
+            "final_k": 5,
+            "rerank_enabled": False,
+            "force_citation": False,
+            "llm_structured_mode": "tools",
+        }
+        base.update(overrides)
+        for campo, valor in base.items():
+            monkeypatch.setattr(run_eval.settings, campo, valor)
+        run_eval._salvar({"metricas": {"total_itens": 1}})
+        resumo = json.loads(next(tmp_path.glob("metricas_*.json")).read_text(encoding="utf-8"))
+        return resumo["serie"]
+
+    assert _serie() is True
+    assert _serie(llm_model="openai/gpt-4o") is False  # trocou o modelo respondedor
+    assert _serie(force_citation=True) is False  # pós-processamento ligado
+    assert _serie(score_threshold=0.50) is False  # threshold fora do congelado
+    assert _serie(llm_structured_mode="json_schema") is False  # outro formato na requisição

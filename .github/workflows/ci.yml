@@ -30,8 +30,13 @@ jobs:
       - name: Testes unitários
         run: pytest -m "not integration" --cov --cov-report=term-missing
 
-  # Eval de ponta a ponta: precisa de OPENAI_API_KEY (secret) e Qdrant.
+  # Eval de ponta a ponta na CONFIGURAÇÃO CANÔNICA DA SÉRIE (EVALUATION.md seção 2):
+  # corpus samples/, gpt-4o-mini respondendo, gpt-4o julgando, thr=0.45, reranker
+  # off, FORCE_CITATION off. Rodada fora disso grava serie: false e não entra na
+  # série temporal. Precisa do secret OPENAI_API_KEY (chave da OpenRouter).
   # Destravar: `gh variable set ENABLE_EVAL --body true` no repositório.
+  # ATENÇÃO: com o contrato Pydantic o p95 está em ~3,5s — o gate reprova no teto de
+  # 3s do NFR-1 até a latência ser resolvida (streaming ou prompt mais magro).
   eval:
     if: vars.ENABLE_EVAL == 'true'
     runs-on: ubuntu-latest
@@ -41,6 +46,9 @@ jobs:
         ports: ["6333:6333"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # O gate compara com a última rodada da série versionada: precisa de history.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -55,16 +63,33 @@ jobs:
       - name: Indexar corpus de exemplo
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: https://openrouter.ai/api/v1
           QDRANT_URL: http://localhost:6333
+          QDRANT_COLLECTION: grifo_samples
+          CURSO_NOME: Curso Exemplo
+          EMBEDDING_PROVIDER: local
         run: python -m grifo.ingest samples/
 
-      - name: Rodar avaliação
+      - name: Rodar avaliação (série)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: https://openrouter.ai/api/v1
           QDRANT_URL: http://localhost:6333
+          QDRANT_COLLECTION: grifo_samples
+          CURSO_NOME: Curso Exemplo
+          EMBEDDING_PROVIDER: local
+          LLM_MODEL: openai/gpt-4o-mini
+          EVAL_LLM_MODEL: openai/gpt-4o
+          EVAL_STRICT: "false"
         run: python eval/run_eval.py
 
+      - name: Gate de regressão contra a última rodada da série
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python eval/gate_regressao.py
+
       - uses: actions/upload-artifact@v4
+        name: Publicar resultado
         with:
           name: eval-results
           path: eval/results/

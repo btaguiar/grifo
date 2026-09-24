@@ -17,17 +17,30 @@ Se o prazo apertar, corte o reranking e o BM25 antes de cortar ESTE arquivo.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
 import sys
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from grifo.config import REFUSAL_MESSAGE, settings  # noqa: E402
+from grifo.config import (  # noqa: E402
+    REFUSAL_MESSAGE,
+    SERIE_EVAL_LLM_MODEL,
+    SERIE_FINAL_K,
+    SERIE_GOLDEN_SET,
+    SERIE_LLM_MODEL,
+    SERIE_LLM_STRUCTURED_MODE,
+    SERIE_SCORE_THRESHOLD,
+    custo_por_tokens,
+    settings,
+)
+from grifo.generation.prompts import JUDGE_PROMPT  # noqa: E402
 
 #: Configurável por GOLDEN_SET (.env ou variável de ambiente): o corpus real usa
 #: eval/golden_set.local.jsonl, que não é versionado.
@@ -39,6 +52,11 @@ _CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
 META_RECUSA_CORRETA = 0.95
 META_ALUCINACAO = 0.02
 META_LATENCIA_P95_MS = 3000
+#: Calibrado da PRIMEIRA rodada medida com a métrica (contrato, 2026-09-06:
+#: média 0.9545 em n=33), não a priori — com ~5pp de folga para o ruído conhecido:
+#: paráfrase por sinônimo perde termo do gabarito sem errar conteúdo (gs-028 perde
+#: "gasto"/"composto" para "paga"/"cíclico"). Recalibrar aqui ao redefinir o gabarito.
+META_COBERTURA_MEDIA = 0.90
 
 
 def carregar_golden_set() -> list[dict]:
@@ -87,35 +105,48 @@ def fonte_bate(esperada: dict, fontes: list[dict]) -> bool:
     )
 
 
-#: Prompt do juiz de alucinacao. CALIBRADO contra eval/judge_calibration.jsonl.
-#:
-#: A versao anterior perguntava "contem ALGUMA afirmacao nao sustentada?" e reprovava
-#: parafrase fiel. Num RAG quase toda resposta e reformulacao, entao aquilo inflou a
-#: taxa medida para 79,5%. Esta versao separa "reformular" de "inventar fato novo".
-#:
-#: Acuracia no conjunto de calibracao com qwen2.5-7b: 6/6 (rode
-#: `python eval/calibrar_juiz.py` para reproduzir). Sao apenas 6 casos feitos a mao:
-#: isso mostra que o juiz nao esta obviamente quebrado no eixo parafrase-vs-invencao,
-#: nao que ele seja confiavel. Amplie o conjunto e rejulgue com um modelo maior antes
-#: de publicar a taxa.
-JUDGE_PROMPT = """Você audita se uma resposta inventou informação. Responda apenas SIM ou NÃO.
+def normalizar_busca(texto: str) -> str:
+    """Casefold sem acento: "Aquisição" casa com "aquisicao".
 
-TRECHOS DO MATERIAL:
-{c}
+    O gabarito `expected_answer_contains` foi rotulado à mão e o modelo parafraseia —
+    sem normalização, "número de clientes" não casa "Numero de clientes".
+    """
+    decomposto = unicodedata.normalize("NFD", texto)
+    sem_acento = "".join(c for c in decomposto if unicodedata.category(c) != "Mn")
+    return sem_acento.casefold()
 
-PERGUNTA DO ALUNO:
-{q}
 
-RESPOSTA A AUDITAR:
-{a}
+def cobertura_conteudo(itens: list[dict]) -> dict | None:
+    """Gabarito de resposta: fração dos termos de `expected_answer_contains` na resposta.
 
-Responda SIM apenas se a resposta afirmar algum FATO NOVO que não está nos trechos:
-número, data, nome de empresa ou pessoa, benchmark, regra ou recomendação ausente.
-Responda NÃO se a resposta apenas reformula, resume, parafraseia, reordena ou explica
-com outras palavras o que está nos trechos. Reformular NÃO é inventar.
-Ignore as marcações de citação entre colchetes.
+    Denominador = respondidas dentro do escopo COM gabarito (recusas ficam fora —
+    quem não respondeu já aparece na taxa de resposta; contar aqui seria cobrar duas
+    vezes o mesmo erro). Devolve a média por item e a proporção de itens com
+    cobertura TOTAL (todos os termos presentes) — a segunda é mais dura e é ela que
+    encontra a resposta "certa por cima": aula certa, conteúdo pela metade.
+    """
+    alvo = [
+        i for i in itens if i["should_answer"] and i["found"] and i.get("expected_answer_contains")
+    ]
+    if not alvo:
+        return None
+    por_item: list[float] = []
+    for i in alvo:
+        resposta = normalizar_busca(i["answer"])
+        termos = i["expected_answer_contains"]
+        acertos = sum(1 for t in termos if normalizar_busca(t) in resposta)
+        por_item.append(acertos / len(termos))
+    return {
+        "media": round(sum(por_item) / len(por_item), 4),
+        "total_em_itens": round(sum(1 for c in por_item if c == 1.0) / len(por_item), 4),
+        "n": len(por_item),
+    }
 
-SIM ou NÃO:"""
+
+#: O prompt do juiz vive em `src/grifo/generation/prompts/judge.txt` (Fase 5) e é
+#: importado lá de cima — o SHA-256 dele acompanha o bloco `config` de cada rodada.
+#: Calibrado contra eval/judge_calibration.jsonl; a versao anterior reprovava
+#: parafrase fiel e inflou a taxa medida para 79,5% no corpus real.
 
 
 def _llm_do_eval():
@@ -140,7 +171,12 @@ def _llm_do_eval():
 
 
 def _judge_alucinacao(itens: list[dict]) -> float | None:
-    """LLM-as-judge: afirmação não sustentada pelos chunks recuperados (amostra calibrada à mão)."""
+    """LLM-as-judge: afirmação não sustentada pelos chunks recuperados (amostra calibrada à mão).
+
+    Anota `alucinou` em cada item respondido — o veredito por item é o que permite
+    reconciliar o juiz com o faithfulness do RAG (EVALUATION.md 5.8); a taxa sozinha
+    esconde onde os dois discordam.
+    """
     if not settings.openai_api_key:
         return None
     try:
@@ -157,8 +193,8 @@ def _judge_alucinacao(itens: list[dict]) -> float | None:
             veredito = llm.invoke(prompt).content.strip().upper()
         except Exception:
             return None
-        if veredito.startswith("SIM"):
-            alucinados += 1
+        item["alucinou"] = veredito.startswith("SIM")
+        alucinados += item["alucinou"]
     return alucinados / len(respondidos)
 
 
@@ -182,6 +218,8 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
     Pelo mesmo motivo, `context_precision` entra na variante **sem referência**, que
     julga os contextos contra a resposta gerada em vez de contra um gabarito.
     """
+    if not settings.ragas_enabled:
+        return None
     if not settings.openai_api_key:
         return None
     try:
@@ -240,6 +278,14 @@ def _ragas_metricas(itens: list[dict]) -> dict | None:
             validos = df[coluna].dropna()
             saida[coluna] = round(float(validos.mean()), 4) if len(validos) else None
             saida[f"{coluna}_n"] = len(validos)
+        # Faithfulness POR ITEM (EVALUATION.md 5.8): a média esconde onde o juiz
+        # próprio e o RAGAS discordam — a reconciliação item a item é o que
+        # transforma duas métricas próximas em informação sobre cada uma. As linhas
+        # do dataframe seguem a ordem dos itens respondidos que entraram no Dataset.
+        respondidos = [i for i in itens if i["found"]]
+        if "faithfulness" in df.columns and len(df) == len(respondidos):
+            for item, valor in zip(respondidos, df["faithfulness"], strict=False):
+                item["ragas_faithfulness"] = None if valor != valor else round(float(valor), 4)
         return saida
     except Exception as exc:
         print(f"aviso: RAGAS falhou ({exc}); continuando com as métricas próprias")
@@ -268,6 +314,32 @@ def _opcional(rotulo: str, fn, *args):
         return None
 
 
+def _juiz_de_registro() -> dict | None:
+    """A calibração de registro (`calibracao_juiz.json`, gerada por `calibrar_juiz.py`).
+
+    Toda rodada carrega a confiabilidade do juiz que a produziu: sem isto, um kappa
+    medido num prompt antigo seria lido como se valesse para o atual. Se o hash do
+    prompt calibrado divergir do `JUDGE_PROMPT` em uso, o bloco ganha a flag
+    `prompt_divergente_do_calibrado` — recalibrar é a saída, não ignorar.
+    """
+    caminho = RESULTADOS / "calibracao_juiz.json"
+    if not caminho.exists():
+        return None
+    try:
+        dados = json.loads(caminho.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    juiz = dados.get("juiz")
+    if not juiz:
+        return None
+    if juiz.get("prompt_sha256") != hashlib.sha256(JUDGE_PROMPT.encode("utf-8")).hexdigest():
+        juiz["prompt_divergente_do_calibrado"] = True
+        juiz["modelo_calibrado"] = juiz.get("modelo")
+        juiz["modelo"] = settings.eval_llm_model or settings.llm_model
+        print("aviso: o JUDGE_PROMPT em uso diverge do calibrado — rode calibrar_juiz.py")
+    return juiz
+
+
 def run() -> dict:
     """Executa a avaliacao completa e devolve o dicionario de metricas."""
     from grifo.generation.chain import answer
@@ -290,9 +362,20 @@ def run() -> dict:
             ),
             "latency_ms": resposta["latency_ms"],
             "tokens": resposta["tokens"],
+            # Re-tentativas de validação do contrato (Fase 2): quantas queries o
+            # modelo devolveu saída que violou o Pydantic ao menos uma vez.
+            "retries": resposta.get("retries", 0),
         }
         registro["fonte_correta"] = (
             fonte_bate(item["expected_source"], resposta["sources"])
+            if item["should_answer"] and resposta["found"]
+            else None
+        )
+        # A versão dura da mesma pergunta: a aula esperada foi CITADA pelo modelo,
+        # não apenas recuperada. Só existe desde o contrato da Fase 2, que devolve
+        # `citations` validadas — antes disso não havia como distinguir.
+        registro["fonte_citada_correta"] = (
+            fonte_bate(item["expected_source"], [s for s in resposta["sources"] if s.get("cited")])
             if item["should_answer"] and resposta["found"]
             else None
         )
@@ -319,8 +402,32 @@ def run() -> dict:
             if respondidos
             else None
         ),
+        # Mesmo denominador da de cima, critério mais duro: a aula esperada aparece
+        # entre as fontes que o modelo CITOU, não entre as que foram recuperadas. A
+        # diferença entre as duas é o quanto o número anterior devia à generosidade
+        # do critério, e é ela que interessa ler.
+        "fonte_citada_correta_em_respondidas": (
+            round(sum(1 for i in respondidos if i["fonte_citada_correta"]) / len(respondidos), 4)
+            if respondidos
+            else None
+        ),
+        # Gabarito de resposta (Fase 3): o expected_answer_contains era trabalho
+        # rotulado sem consumidor — agora sustenta a métrica de cobertura.
+        "cobertura_conteudo": cobertura_conteudo(itens),
         "tokens_input_total": sum(i["tokens"]["input"] for i in itens),
         "tokens_output_total": sum(i["tokens"]["output"] for i in itens),
+        # Custo da GERAÇÃO pelos tokens medidos e preço público (Fase 4). None =
+        # modelo fora da tabela de preços: não se publica custo estimado. Os tokens
+        # do juiz/RAGAS não entram nos totais — ver EVALUATION.md seção 6.
+        "custo_usd": custo_por_tokens(
+            settings.llm_model,
+            sum(i["tokens"]["input"] for i in itens),
+            sum(i["tokens"]["output"] for i in itens),
+        ),
+        # Fase 2: proporção de queries que precisaram de >=1 re-tentativa de
+        # validação do contrato. Denominador = TODAS as queries: recusa sem LLM
+        # entra com 0 — é o custo total de retry do sistema por rodada.
+        "retry_rate": round(sum(1 for i in itens if i.get("retries")) / max(len(itens), 1), 4),
         "ragas": _opcional("RAGAS", _ragas_metricas, itens),
     }
     return {"metricas": metricas, "itens": itens}
@@ -336,6 +443,37 @@ def _salvar_bruto(itens: list[dict]) -> None:
     (RESULTADOS / f"bruto_{stamp}_{_commit_hash()}.json").write_text(
         json.dumps(itens, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+def _eh_config_de_serie() -> bool:
+    """A rodada atual roda na configuração canônica congelada da série?
+
+    Qualquer peça fora do congelado (modelo, threshold, reranker, golden set,
+    force_citation, modo estruturado) faz a rodada sair com `serie: false` — números
+    comparáveis entre si ou nada. É a mesma regra que impede as duas rodadas antigas
+    de formarem série. O modo estruturado entra porque muda o que viaja na requisição
+    (schema como tool ou como response_format), e com isso tokens e latência.
+    """
+    return (
+        settings.llm_model == SERIE_LLM_MODEL
+        and settings.llm_structured_mode == SERIE_LLM_STRUCTURED_MODE
+        and (settings.eval_llm_model or settings.llm_model) == SERIE_EVAL_LLM_MODEL
+        and settings.score_threshold == SERIE_SCORE_THRESHOLD
+        and settings.final_k == SERIE_FINAL_K
+        and not settings.rerank_enabled
+        and not settings.force_citation
+        and settings.golden_set.name == SERIE_GOLDEN_SET
+    )
+
+
+def _hashes_dos_prompts() -> dict[str, str]:
+    """SHA-256 dos prompts versionados — a assinatura que explica os números."""
+    from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT
+
+    return {
+        "answer_system": hashlib.sha256(ANSWER_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        "judge": hashlib.sha256(JUDGE_PROMPT.encode("utf-8")).hexdigest(),
+    }
 
 
 def _salvar(resultado: dict) -> Path:
@@ -359,7 +497,14 @@ def _salvar(resultado: dict) -> Path:
         if settings.golden_set.name.endswith(".local.jsonl")
         else "publico (samples/)"
     )
-    cabecalho_publico = {"timestamp": stamp, "commit": commit, "corpus": corpus}
+    cabecalho_publico = {
+        "timestamp": stamp,
+        "commit": commit,
+        "corpus": corpus,
+        #: A rodada entra na série temporal só na configuração canônica (Fase 4).
+        #: False = comparável apenas consigo mesma — não some com as da série.
+        "serie": _eh_config_de_serie(),
+    }
 
     caminho = RESULTADOS / f"eval_{stamp}_{commit}.json"
     caminho.write_text(
@@ -390,6 +535,19 @@ def _salvar(resultado: dict) -> Path:
                     "rerank_enabled": settings.rerank_enabled,
                     "bm25_rescue_min_idf": settings.bm25_rescue_min_idf,
                     "golden_set": settings.golden_set.name,
+                    #: Se a citação foi pós-processada (`_ensure_citation`) nesta
+                    #: rodada — sem isto, rodada A/B da Fase 2 é indistinguível.
+                    "force_citation": settings.force_citation,
+                    "llm_structured_mode": settings.llm_structured_mode,
+                    # Hashes dos prompts versionados (Fase 5): dois metricas com
+                    # números diferentes sempre têm como ser explicados por
+                    # diferença em config — inclusive a vírgula de prompt.
+                    "prompt_sha256": _hashes_dos_prompts(),
+                    # Confiabilidade do juiz que produziu esta rodada (plano de
+                    # execução, Fase 1): kappa + matriz da calibração de registro.
+                    # `null` = sem calibração de registro — a taxa de alucinação
+                    # desta rodada sai sem lastro de confiabilidade.
+                    "juiz": _opcional("calibração do juiz", _juiz_de_registro),
                 },
             },
             ensure_ascii=False,
@@ -422,6 +580,9 @@ def main() -> int:
         falhas.append(f"alucinacao {m['alucinacao']:.3f} >= {META_ALUCINACAO}")
     if m["latency_p95_ms"] >= META_LATENCIA_P95_MS:
         falhas.append(f"latency_p95_ms {m['latency_p95_ms']} >= {META_LATENCIA_P95_MS}")
+    cobertura = m.get("cobertura_conteudo")
+    if cobertura is not None and cobertura["media"] < META_COBERTURA_MEDIA:
+        falhas.append(f"cobertura_conteudo {cobertura['media']:.3f} < {META_COBERTURA_MEDIA}")
     if falhas:
         print("REPROVADO: " + "; ".join(falhas))
         return 1

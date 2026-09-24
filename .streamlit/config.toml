@@ -1,0 +1,10 @@
+# Lido do diretório de onde o `streamlit run` é chamado: a raiz do repo, local ou no
+# container (WORKDIR /app, copiado pelo Dockerfile).
+
+[client]
+# Esconde o botão "Deploy" e o menu de desenvolvedor: quem abre a demo é aluno, não
+# quem mantém o app.
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

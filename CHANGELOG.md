@@ -110,3 +110,136 @@ dependências de desenvolvimento para isto ser reprodutível.
 **Auditoria de governança antes de publicar (GOV-5).** Nenhum segredo em nenhum commit e
 o material do curso nunca versionado — mas a *origem* do material vazava, e foi o que
 motivou refazer o histórico.
+
+## Setembro de 2026 — fechando o ciclo de avaliação
+
+Sete frentes executadas contra um plano escrito ([docs/plano-execucao.md](docs/plano-execucao.md)).
+O que segue está na ordem em que as coisas apareceram, e duas delas são pioras.
+
+**O regex saiu do caminho de produção, e a citação parou de ser fabricada.** A saída do
+LLM virou contrato Pydantic (`GrifoAnswer`) validado por instructor, com retry instruído:
+violação de schema volta ao modelo como erro, em vez de o código consertar a saída por
+fora. O par módulo/aula citado passa a ser validado contra os trechos efetivamente
+recuperados — citar aula não consultada reprova o contrato. O `_ensure_citation`, que
+anexava a citação à força em 9 de 44 respostas (20%), continua no código atrás de
+`FORCE_CITATION=false` — mesmo padrão do reranker: mecanismo medido que ficou
+explicitamente desligado. Rodadas A/B nas duas configurações: a citação é **1.00
+espontânea, com zero re-validações**, e a rodada com a flag ligada não teve o que
+consertar.
+
+**E custou latência, que é o preço publicado.** O caminho estruturado troca chamada de
+chat simples por tool calling, com o schema viajando em toda requisição: +55% de tokens
+de entrada por pergunta (361 → 561) e p95 de 2,58s para 3,53s — acima da meta de 3s.
+O NFR-1 volta a não atingir no corpus público. O ganho é a citação deixar de ser
+artificial e a validação de fonte passar a existir; o custo é este, e está na tabela em
+vez de numa nota de rodapé.
+
+**Um campo do golden set estava rotulado à mão e sem consumidor nenhum.** O
+`expected_answer_contains` existia nos dois golden sets desde o início e nenhuma métrica
+o lia — o eval sabia dizer se a *aula* estava certa, nunca se a *resposta* estava. Virou
+`cobertura_conteudo`, e os dois itens que ela reprova dizem exatamente o que ela existe
+para dizer: um responde a definição sem os termos que a aula pede, o outro troca
+"gasto"/"composto" por "paga"/"cíclico" — conteúdo certo, termo não. O limiar de 0.90
+saiu da primeira rodada medida, não de um palpite anterior a ela.
+
+**Duas rodadas versionadas não formam série.** Corpora, provedores e tamanhos diferentes:
+dois pontos que não se ligam. Existe agora uma configuração canônica congelada, e a
+rodada só grava `serie: true` se rodar exatamente nela — números comparáveis entre si ou
+nada. Com isso vieram o gate de regressão contra a última rodada da série, o gráfico
+derivado dos dados e o `custo_usd` calculado dos tokens medidos. O gate reprova hoje, no
+p95, e foi deixado assim.
+
+**Trocar uma vírgula de prompt movia os números sem deixar rastro.** O histórico
+`0.43 → 0.795 → 0.045` de alucinação é esse efeito acontecendo três vezes. Os prompts
+saíram do código para `.txt` versionados, o SHA-256 de cada um acompanha o bloco `config`
+de toda rodada, e um teste trava o hash de referência: mudar prompt passa a exigir
+atualizar o hash, o que torna a mudança decisão explícita em vez de efeito colateral.
+
+**O juiz ganhou a máquina inteira antes de ganhar um número.** Matriz de confusão,
+precisão, recall, taxa de falso positivo e Kappa de Cohen, com piso de 0.70 e registro
+que acompanha cada rodada. O conjunto de calibração foi de 6 para 99 casos — mas 93
+estavam marcados `"rascunho": true`, rótulo proposto e não revisado, e o
+`calibrar_juiz.py` os exclui de propósito. Naquele ponto o kappa sairia sobre os mesmos 6
+casos de sempre. Ficou declarado como falta em vez de contornado; o número veio depois,
+mais abaixo.
+
+**Medir os rótulos, e não só o juiz, mostrou que o kappa sairia inflado.** O
+`calibrar_juiz.py` mede o juiz *contra* os rótulos; ninguém media os rótulos. A triagem
+nova encontrou o problema: **61% dos casos positivos terminam numa frase que abre com
+fórmula de atribuição** ("O material recomenda…") contra 2% dos negativos, e os positivos
+são mais curtos — mediana de 214 chars contra 308. Duas pistas de *forma* que separam as
+classes sem ler o contexto: um juiz pode acertar pela forma da fabricação, o kappa sobe, e
+nenhuma métrica do relatório denuncia. A triagem também mostrou que os 99 casos cobrem só
+33 contextos distintos, três famílias sobre cada um — kappa supõe itens independentes.
+Ela reprovou, e corrigir isso passou a ser pré-condição da rotulagem, não um passo
+depois dela.
+
+**Uma reescrita em PowerShell deixou o README ilegível, e o commit seguinte não viu.** O
+arquivo foi lido como Windows-1252 e regravado como UTF-8: "dúvidas" virou "dÃºvidas" em
+301 pontos, bytes UTF-8 válidos e caracteres errados. O commit que veio depois removeu o
+BOM e passou ao lado da causa. A assinatura estava nos próprios caracteres — `€`, `"`,
+`‰`, `ƒ` são os bytes 0x80, 0x94, 0x89 e 0x83 do cp1252 —, e um `\x8d` solto denunciava
+o decodificador que passa adiante os cinco bytes que aquela tabela não define. Ficou na
+branch e não chegou ao `main`. É o mesmo modo de falha que este projeto vem colecionando:
+tudo continua "funcionando", só que errado, e sem erro nenhum para avisar.
+
+**A assinatura de superfície saiu da calibração.** Os 30 casos injetados foram
+reescritos com o fato novo costurado no meio da resposta, sem fórmula de atribuição e no
+comprimento dos negativos. O gap de fórmula caiu de 59pp para 2pp e a razão de tamanho
+foi para 1.05; a triagem aprova. O gerador ficou idempotente — descarta rascunhos,
+preserva o que já foi confirmado —, e a triagem continua no fluxo, porque fabricar em
+série reintroduz a assinatura sem ninguém notar.
+
+**O cliente HTTP era recriado a cada pergunta, e as citações eram descartadas.** O
+cliente OpenAI passou a ser reaproveitado entre requisições; os hooks do instructor, não
+— o `/ask` roda em threadpool, e estado compartilhado trocaria contagem de tokens e
+retries entre requisições concorrentes. O efeito na latência ainda não foi medido. As
+citações que o contrato validava eram jogadas fora antes da resposta: agora cada fonte
+sai com `cited`, e o eval ganhou `fonte_citada_correta_em_respondidas`, que separa o que
+o retrieval trouxe do que a resposta de fato citou.
+
+**A regra de fronteira foi escrita antes da rotulagem, não durante.** Só conta como
+alucinação fato novo ausente dos trechos — número, data, nome, benchmark, regra, prazo
+ou recomendação. Consequência que os trechos sustentam não conta. Decidir isso caso a
+caso durante a revisão faria o kappa medir a inconsistência de quem rotula.
+
+**O kappa existe — e a primeira leitura dele estava errada.** Em vez de fingir revisão
+humana de 93 rascunhos, `eval/confirmar_rotulos.py` confirma o rótulo que decorre da
+construção do caso quando ele é mecanicamente verificável, e recusa o resto. Resultado:
+91 confirmados por construção, 6 por leitura humana, 2 recusados pelo próprio invariante
+e ainda em rascunho. Cada rótulo carrega a `procedencia`, e o kappa sai separado por ela.
+O primeiro juiz medido foi o `qwen2.5-7b` local: κ 0.408, recall 0.364, zero acerto em
+prazo e em recomendação. A leitura óbvia era reforçar essas categorias no prompt do juiz.
+Antes de mexer, a mesma calibração rodou com `gpt-4o`, o juiz da série: **κ 0.905**,
+recall 0.879, precisão 1.000 — mesmo prompt, mesmo SHA-256, mesmos 97 casos. O gargalo
+era o modelo. A mudança de prompt não foi feita, porque consertaria o que não está
+quebrado e trocaria número medido por hipótese; a decisão que ficou é não usar 7B como
+juiz. Com isso a alucinação 0.00 das rodadas julgadas por `gpt-4o` fica sustentada pela
+primeira vez, e a da linha de base sobre o corpus real — julgada pelo próprio 7B — passa
+a ser lida como não sustentada. O commit que publicou o 0.408 estendeu essa
+reinterpretação a uma rodada que o `gpt-4o` já tinha julgado; o seguinte corrigiu.
+
+**Abrir a interface achou duas falhas que nenhum teste e nenhuma rodada viam.** A
+primeira pergunta em escopo foi recusada. O retrieval devolvia zero chunks porque
+**todo vetor das três coleções do Qdrant estava zerado** — payload intacto, norma zero,
+todo cosseno 0.0, e o gate do FR-24 recusando tudo em silêncio. Em 06/09 o índice
+estava bom (a rodada daquele dia acertou a fonte em 97% das respondidas); entre as duas
+datas o container caiu com `Exited (255)`. A causa mais provável é esse desligamento
+abrupto, e ela não está provada. A coleção pública foi reingerida e voltou com os mesmos
+scores da rodada de 06/09 até a quarta casa. A segunda falha era de código: com o LM
+Studio, **toda pergunta em escopo devolvia 500**. O instructor pede o JSON por chamada
+de função com `tool_choice` em forma de objeto, e o LM Studio só aceita `none`, `auto` ou
+`required`. O setup "custo zero, nada sai da máquina" estava quebrado desde o contrato
+estruturado, e a série não via porque roda no OpenRouter. Os modos foram medidos contra
+o qwen antes de escolher — `tools` 400, `json` 400, `md_json` 7,9s, `json_schema` 2,8s
+—, e `LLM_STRUCTURED_MODE=json_schema` entrou como escolha explícita. O default continua
+`tools`, e trocar o modo tira a rodada da série.
+
+**A interface ganhou o `cited` que a API já devolvia.** As fontes saem agrupadas por
+aula, e não por trecho (eram duas linhas idênticas "Módulo 2 · Aula 4"), com as citadas
+na resposta separadas das só consultadas. O bloco que desenhava a resposta estava
+copiado em dois lugares e já tinha divergido: a legenda da recusa sumia quando a
+conversa era redesenhada. Virou uma função só, e um teste no `AppTest` do Streamlit —
+que falha na versão anterior — trava isso. O timeout de 30s derrubava a primeira
+pergunta no modelo local (30,3s medidos), e todo erro virava "confira se a API está no
+ar", inclusive o 500 com a API no ar.
