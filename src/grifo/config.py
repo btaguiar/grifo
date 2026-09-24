@@ -134,6 +134,17 @@ class Settings(BaseSettings):
     force_citation: bool = False
 
     # API
+    #: Origens liberadas no CORS, separadas por vírgula. Vazio = nenhuma, que é
+    #: o certo para quem só usa a UI servida junto. O front em Next roda noutra
+    #: origem (`:3000` em dev, o domínio da demo em produção) e sem isto o
+    #: navegador barra o `POST /ask` antes de ele sair da máquina.
+    cors_origins: str = ""
+
+    @property
+    def origens_cors(self) -> list[str]:
+        """CORS_ORIGINS -> lista, ignorando espaço e entrada vazia."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     ingest_token: str = ""
