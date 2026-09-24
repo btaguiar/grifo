@@ -77,3 +77,7 @@ corpus/**/*.vtt
 corpus/**/*.json3
 corpus/**/*.m4a
 corpus/**/*.mp3
+
+# andaime do create-next-app, recriado pelas ferramentas
+web/AGENTS.md
+web/CLAUDE.md
