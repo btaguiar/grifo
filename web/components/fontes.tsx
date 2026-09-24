@@ -1,5 +1,6 @@
 import { ArrowUpRight, Quote } from "lucide-react"
 
+import { AULAS } from "@/lib/aulas"
 import { agruparPorAula, type Fonte } from "@/lib/grifo"
 
 /** "4 - Inteligencia Artificial" chega como um campo só; na tela o número e o nome
@@ -46,6 +47,13 @@ export function Fontes({ fontes }: { fontes: Fonte[] }) {
   )
 }
 
+/** O titulo que a API devolve vem do slug da pasta: "Ia Nos Negocios Em 2026", sem
+ * acento e com a sigla capitalizada errado. O catalogo do front tem o titulo escrito
+ * por gente, e o numero da aula liga os dois. Sem correspondencia, fica o da API. */
+function doCatalogo(numeroDaAula: string) {
+  return AULAS.find((a) => String(a.numero) === numeroDaAula)
+}
+
 function LinhaFonte({
   aula,
   citada,
@@ -55,10 +63,11 @@ function LinhaFonte({
 }) {
   const daAula = partes(aula.aula)
   const doModulo = partes(aula.modulo)
+  const catalogo = doCatalogo(daAula.numero)
 
   const detalhe = [
     doModulo.numero ? `Módulo ${doModulo.numero}` : doModulo.nome,
-    aula.autor,
+    aula.autor ?? catalogo?.autor,
     aula.trechos > 1 ? `${aula.trechos} trechos` : null,
   ]
     .filter(Boolean)
@@ -73,7 +82,7 @@ function LinhaFonte({
           )}
           <span className="truncate">
             {daAula.numero && `Aula ${daAula.numero}, `}
-            {daAula.nome}
+            {catalogo?.titulo ?? daAula.nome}
           </span>
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">{detalhe}</span>
