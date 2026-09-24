@@ -163,3 +163,41 @@ def test_resposta_separa_citadas_das_so_consultadas(monkeypatch):
     assert "2 trechos" in linhas[0] and "CAC e LTV" in linhas[0]
     assert linhas[1].startswith(":gray[") and "Funil" in linhas[1]
     assert "Citadas na resposta" in [c.value for c in at.caption]
+
+
+# ── o link da aula tem precedência sobre a base única do curso ──────────────────
+
+
+def test_link_da_fonte_vence_a_base_do_curso(monkeypatch):
+    """Cada aula tem a sua URL; a base por curso é só fallback de corpus sem ela."""
+    monkeypatch.setattr(app, "VIDEO_BASE_URL", "https://player.exemplo.com/video/1")
+    linha = linha_fonte(
+        {**_fonte("4", 0.6, True, "00:22:14"), "url": "https://youtu.be/AbC?t=1334"}
+    )
+    assert "https://youtu.be/AbC?t=1334" in linha and "player.exemplo.com" not in linha
+
+
+def test_sem_url_da_fonte_cai_na_base_do_curso(monkeypatch):
+    monkeypatch.setattr(app, "VIDEO_BASE_URL", "https://player.exemplo.com/video/1")
+    linha = linha_fonte({**_fonte("4", 0.6, True, "00:22:14"), "url": None})
+    assert "player.exemplo.com/video/1?t=1334" in linha
+
+
+def test_agrupamento_mantem_a_url_do_melhor_trecho():
+    aulas = agrupar_por_aula(
+        [
+            {**_fonte("4 - CAC", 0.50, True, "00:01:00"), "url": "https://youtu.be/AbC?t=60"},
+            {**_fonte("4 - CAC", 0.70, True, "00:09:00"), "url": "https://youtu.be/AbC?t=540"},
+        ]
+    )
+    assert aulas[0]["url"] == "https://youtu.be/AbC?t=540"
+
+
+def test_linha_da_fonte_mostra_o_autor():
+    linha = linha_fonte({**_fonte("1 - Como Vender", 0.6, True), "autor": "Alfredo Soares"})
+    assert "Alfredo Soares" in linha
+
+
+def test_fonte_sem_autor_nao_deixa_sobra_na_linha():
+    linha = linha_fonte(_fonte("4 - CAC", 0.6, True))
+    assert "_" not in linha.replace("**", "")

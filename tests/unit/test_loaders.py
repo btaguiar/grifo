@@ -1,5 +1,10 @@
 """FR-10, FR-11: um loader por formato; load_directory não conhece a origem do corpus."""
 
+import json
+from pathlib import Path
+
+import pytest
+
 from grifo.ingest.loaders import (
     load_directory,
     load_markdown,
@@ -118,3 +123,77 @@ def test_markdown_comum_continua_seccionando_por_heading(md_file):
     assert all(d.metadata["fonte_tipo"] == "markdown" for d in docs)
     assert all(d.metadata["timestamp_inicio"] is None for d in docs)
     assert [d.metadata["pagina"] for d in docs] == list(range(1, len(docs) + 1))
+
+
+# ── fontes.json: a URL da aula entra como metadado (DC-1) ───────────────────────
+
+URL = "https://youtu.be/AbC123"
+
+
+def _manifesto(raiz: Path, mapa: dict | list) -> None:
+    (raiz / "fontes.json").write_text(json.dumps(mapa), encoding="utf-8")
+
+
+def _chave(arquivo: Path, raiz: Path) -> str:
+    return arquivo.relative_to(raiz).as_posix()
+
+
+def test_manifesto_poe_a_url_da_aula_no_metadado(vtt_file):
+    """Material publicado em vídeo: cada aula tem a SUA URL, não uma base por curso."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): URL})
+    da_aula = [d for d in load_directory(raiz) if d.metadata["arquivo"] == vtt_file.name]
+    assert da_aula and all(d.metadata["fonte_url"] == URL for d in da_aula)
+
+
+def test_arquivo_fora_do_manifesto_fica_sem_url(vtt_file, md_file):
+    """Corpus misto: só parte do material está publicada, e isso não é erro."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): URL})
+    do_md = [d for d in load_directory(raiz) if d.metadata["arquivo"] == md_file.name]
+    assert do_md and all(d.metadata["fonte_url"] is None for d in do_md)
+
+
+def test_sem_manifesto_o_campo_existe_e_e_nulo(vtt_file):
+    """Corpus antigo continua ingerindo — o campo é opcional, não some."""
+    docs = load_directory(vtt_file.parent.parent.parent)
+    assert all("fonte_url" in d.metadata and d.metadata["fonte_url"] is None for d in docs)
+
+
+def test_url_invalida_reprova_a_ingestao(vtt_file):
+    """Citação que não abre é pior que citação ausente: falha alto, não silencioso."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): "youtu.be/sem-esquema"})
+    with pytest.raises(ValueError, match="URL invalida"):
+        load_directory(raiz)
+
+
+def test_manifesto_que_nao_e_objeto_reprova(vtt_file):
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, [URL])
+    with pytest.raises(ValueError, match="objeto"):
+        load_directory(raiz)
+
+
+def test_manifesto_aceita_objeto_com_autor(vtt_file):
+    """Num corpus de palestra cada aula é de uma pessoa: o autor é metadado da aula."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): {"url": URL, "autor": "Alfredo Soares"}})
+    docs = [d for d in load_directory(raiz) if d.metadata["arquivo"] == vtt_file.name]
+    assert docs and all(d.metadata["autor"] == "Alfredo Soares" for d in docs)
+    assert all(d.metadata["fonte_url"] == URL for d in docs)
+
+
+def test_manifesto_so_com_url_continua_valendo(vtt_file):
+    """A forma antiga nasceu primeiro e não pode quebrar: autor vira None."""
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): URL})
+    docs = [d for d in load_directory(raiz) if d.metadata["arquivo"] == vtt_file.name]
+    assert docs and all(d.metadata["autor"] is None for d in docs)
+
+
+def test_autor_vazio_reprova_a_ingestao(vtt_file):
+    raiz = vtt_file.parent.parent.parent
+    _manifesto(raiz, {_chave(vtt_file, raiz): {"url": URL, "autor": "  "}})
+    with pytest.raises(ValueError, match="autor invalido"):
+        load_directory(raiz)

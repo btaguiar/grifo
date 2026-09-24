@@ -1,5 +1,14 @@
 # eval/
 
+- `golden_set_aulas_publicas.jsonl` — 25 itens sobre o corpus de vídeo
+  (`corpus/aulas-publicas`): 20 perguntas respondíveis cobrindo as 6 aulas
+  (4/4/3/3/3/3, 16 conceituais e 4 factuais) e 5 fora do escopo — 3 do domínio
+  vizinho (Simples Nacional, INPI, férias CLT), que é o caso difícil, e 2 distantes.
+  `procedencia: revisao-assistida`: geradas do conteúdo e revisadas uma a uma contra
+  o trecho de origem. Cada item fora do escopo carrega `termo_ausente`, verificado
+  contra o corpus inteiro — sem isso "fora do escopo" vira opinião, e a pergunta
+  sobre cachorro já reprovou por estar no material. O rascunho de 77 itens de onde
+  ela saiu fica em `golden_set_aulas_publicas.rascunho.jsonl`.
 - `golden_set.jsonl` — 55 itens no formato DC-3 (44 em escopo, 11 fora), corpus público
   de `samples/`. O do corpus real (`golden_set.local.jsonl`, 64 itens) é local por
   privacidade — o código recebe um caminho e não sabe a diferença.

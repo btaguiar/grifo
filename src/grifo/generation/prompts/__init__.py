@@ -46,6 +46,8 @@ def format_context(chunks) -> str:
     for i, chunk in enumerate(chunks, start=1):
         md = chunk["metadata"]
         localizacao = f"Módulo: {md['modulo']} | Aula: {md['aula']}"
+        if md.get("autor"):
+            localizacao += f" | Autor: {md['autor']}"
         if md.get("timestamp_inicio"):
             localizacao += f" | Timestamp: {md['timestamp_inicio']}"
         if md.get("pagina") is not None:

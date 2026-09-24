@@ -70,3 +70,10 @@ docs/superpowers/
 # Documento de planejamento original: nomeia a empresa e o material de origem.
 # Fica local; o que ele decidiu esta registrado na SPEC e nos ADRs.
 DOSSIE.md
+
+# Corpus publico montado a partir de video: o mapa de links e versionado,
+# a transcricao NAO (ela se reconstroi com `python scripts/baixar_aulas.py`).
+corpus/**/*.vtt
+corpus/**/*.json3
+corpus/**/*.m4a
+corpus/**/*.mp3

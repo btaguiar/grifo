@@ -15,6 +15,11 @@ class Source(BaseModel):
     modulo: str
     aula: str
     timestamp: str | None = None
+    #: URL da aula já no minuto do trecho. `None` quando o corpus não declara
+    #: `fonte_url` (DC-1) — o cliente então exibe a referência textual.
+    url: str | None = None
+    #: Quem dá a aula. `None` quando o corpus não declara.
+    autor: str | None = None
     score: float
     #: O modelo CITOU esta fonte na resposta? Sai das `citations` validadas do
     #: contrato (Fase 2). `sources` continua listando tudo o que foi ao prompt —

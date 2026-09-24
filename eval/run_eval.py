@@ -29,6 +29,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from grifo.citation import CITACAO_RE  # noqa: E402
 from grifo.config import (  # noqa: E402
     REFUSAL_MESSAGE,
     SERIE_EVAL_LLM_MODEL,
@@ -47,7 +48,9 @@ from grifo.generation.prompts import JUDGE_PROMPT  # noqa: E402
 GOLDEN_SET = (REPO_ROOT / settings.golden_set).resolve()
 RESULTADOS = Path(__file__).resolve().parent / "results"
 
-_CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
+#: A regra de formato mora em `grifo.citation`: duas cópias é uma que se
+#: esquece de atualizar, e a esquecida aqui mediria citação boa como ausente.
+_CITACAO_RE = CITACAO_RE
 
 META_RECUSA_CORRETA = 0.95
 META_ALUCINACAO = 0.02
@@ -476,6 +479,23 @@ def _hashes_dos_prompts() -> dict[str, str]:
     }
 
 
+def _rotulo_do_corpus(golden_set: str) -> str:
+    """Qual corpus foi medido, a partir do golden set que o mede.
+
+    Existiam dois rotulos, e por isso a regra era binaria: `.local.jsonl` era o
+    corpus real e TODO o resto virava "publico (samples/)". A primeira rodada sobre
+    o corpus de video (golden_set_aulas_publicas.jsonl) saiu rotulada como samples/,
+    que e outro corpus, com outro tamanho e outro tipo de material. Numero publicado
+    com o corpus errado no cabecalho e pior que numero ausente.
+    """
+    if golden_set.endswith(".local.jsonl"):
+        return "real (privado)"
+    if golden_set == "golden_set.jsonl":
+        return "publico (samples/)"
+    nome = golden_set.removeprefix("golden_set_").removesuffix(".jsonl")
+    return f"publico ({nome.replace('_', '-')})"
+
+
 def _salvar(resultado: dict) -> Path:
     """Grava dois arquivos: o completo (local) e o resumo de metricas (versionavel).
 
@@ -492,11 +512,7 @@ def _salvar(resultado: dict) -> Path:
     # material, e a auditoria GOV-5 tirou esse nome do repo. O arquivo era regenerado a
     # cada rodada com o valor do .env, entao a limpeza de uma vez nao bastava. Para ler
     # o numero, o que importa e QUAL corpus foi medido -- nao como ele se chama.
-    corpus = (
-        "real (privado)"
-        if settings.golden_set.name.endswith(".local.jsonl")
-        else "publico (samples/)"
-    )
+    corpus = _rotulo_do_corpus(settings.golden_set.name)
     cabecalho_publico = {
         "timestamp": stamp,
         "commit": commit,

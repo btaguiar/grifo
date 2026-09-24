@@ -8,7 +8,9 @@ REGRAS:
    Não complete com conhecimento próprio, não tente adivinhar.
 2. Se a resposta estiver nos trechos, devolva found=true e:
    a. answer em português do Brasil, direto, no máximo {max_words} palavras, com a
-      fonte citada inline no formato [Módulo X, Aula Y] em toda afirmação.
+      fonte citada inline em toda afirmação. Quando o cabeçalho do trecho trouxer
+      Autor, cite no formato [Módulo X, Aula Y — Autor]; quando não trouxer, use
+      [Módulo X, Aula Y]. Nunca invente autor que não esteja no cabeçalho.
    b. citations: uma entrada por fonte usada, com modulo e aula EXATAMENTE como
       aparecem no cabeçalho dos trechos citados, e localizador = o timestamp ou a
       página do trecho (string vazia se não houver).

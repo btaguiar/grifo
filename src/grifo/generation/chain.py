@@ -21,7 +21,6 @@ a chain sem tocar na OpenAI.
 
 from __future__ import annotations
 
-import re
 import time
 from collections.abc import Callable
 from functools import lru_cache
@@ -29,15 +28,12 @@ from typing import Any
 
 from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda
 
+from grifo.citation import CITACAO_RE, formatar_citacao, link_com_timestamp
 from grifo.config import REFUSAL_MESSAGE, settings
 from grifo.generation.prompts import ANSWER_SYSTEM_PROMPT, format_context
 from grifo.generation.schemas import GrifoAnswer, SourceRef, _numero, pares_recuperados
 from grifo.retrieval.hybrid import retrieve
 from grifo.retrieval.rerank import rerank
-
-#: Citação bem formada `[Módulo X, Aula Y]` — a garantia executável do FR-31.
-#: Só é usada pelo `_ensure_citation`, que está atrás de FORCE_CITATION.
-_CITACAO_RE = re.compile(r"\[Módulo [^\],]+, Aula [^\],]+\]")
 
 #: O seam estruturado: recebe o prompt formatado, devolve o contrato validado, os
 #: tokens gastos (todas as tentativas) e quantas re-tentativas de validação foram
@@ -185,6 +181,14 @@ def _sources(chunks: list[dict], citations: list[SourceRef] | None = None) -> li
             "modulo": c["metadata"]["modulo"],
             "aula": c["metadata"]["aula"],
             "timestamp": c["metadata"].get("timestamp_inicio"),
+            #: Link acionável da aula no minuto do trecho (FR-33/FR-62). `None`
+            #: quando o corpus não declara `fonte_url` — PDF e markdown citam
+            #: por página, e nem todo curso tem o vídeo publicado.
+            "url": link_com_timestamp(
+                c["metadata"].get("fonte_url"), c["metadata"].get("timestamp_inicio")
+            ),
+            #: Quem deu a aula, quando o corpus declara (DC-1).
+            "autor": c["metadata"].get("autor"),
             "score": round(float(c["score"]), 4),
             "cited": (_numero(c["metadata"]["modulo"]), _numero(c["metadata"]["aula"])) in citadas,
         }
@@ -199,10 +203,11 @@ def _ensure_citation(answer_text: str, chunks: list[dict]) -> str:
     conserto cobria 9 de 44 respostas (20%) — citação atribuída à força é atribuir
     fonte a afirmação não fundamentada. Nunca mais é o mecanismo principal.
     """
-    if _CITACAO_RE.search(answer_text):
+    if CITACAO_RE.search(answer_text):
         return answer_text
     top = chunks[0]["metadata"]
-    return f"{answer_text.rstrip()} [Módulo {top['modulo']}, Aula {top['aula']}]"
+    citacao = formatar_citacao(top["modulo"], top["aula"], top.get("autor"))
+    return f"{answer_text.rstrip()} {citacao}"
 
 
 def _generate(state: dict, structured: StructuredLLM) -> dict:

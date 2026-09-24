@@ -150,6 +150,8 @@ Ordem de corte sob pressão (SPEC seção 11): corte reranking e BM25 **antes** 
         "arquivo": "m3_a7.vtt",
         "timestamp_inicio": "00:22:14", # null quando não for vídeo
         "pagina": None,                 # preenchido para pdf/slide
+        "fonte_url": "https://youtu.be/AbC123",  # URL da AULA; null se não publicada
+        "autor": "Alfredo Soares",      # quem dá a aula; null se não declarado
         "chunk_index": 12,
         "ingested_at": "2026-08-25T10:00:00Z",
     }
@@ -157,6 +159,8 @@ Ordem de corte sob pressão (SPEC seção 11): corte reranking e BM25 **antes** 
 ```
 
 **Invariantes:** `curso`, `modulo`, `aula`, `fonte_tipo`, `arquivo`, `chunk_index` e `ingested_at` são obrigatórios. Ao menos um entre `timestamp_inicio` e `pagina` deve estar preenchido — sem isso a citação não é acionável. A validação de schema roda na ingestão e falha alto.
+
+`fonte_url` e `autor` são opcionais e saem de um `fontes.json` na raiz do corpus (`{caminho relativo do arquivo: URL}`, ou `{caminho: {url, autor}}`), não de configuração no código: material publicado em vídeo tem uma URL POR AULA, e uma base única por curso não endereça isso. URL sem esquema `http(s)` reprova a ingestão — citação que não abre é pior que citação ausente (ADR 003).
 
 ### DC-2 — API `POST /ask`
 
@@ -168,7 +172,8 @@ Ordem de corte sob pressão (SPEC seção 11): corte reranking e BM25 **antes** 
 {
   "answer": "string",
   "sources": [
-    {"modulo": "string", "aula": "string", "timestamp": "string | null", "score": 0.0}
+    {"modulo": "string", "aula": "string", "timestamp": "string | null",
+     "url": "string | null", "autor": "string | null", "cited": false, "score": 0.0}
   ],
   "found": true,
   "latency_ms": 0,
@@ -177,6 +182,8 @@ Ordem de corte sob pressão (SPEC seção 11): corte reranking e BM25 **antes** 
 ```
 
 `found: false` implica `answer` exatamente igual à string de recusa e `sources` vazio.
+
+`sources` lista tudo o que fundamentou a resposta; `cited` marca o que o modelo de fato citou (validado contra os trechos recuperados). `url` é a aula já no minuto do trecho, quando o corpus declara `fonte_url` — o cliente não monta link. A citação inline sai como `[Módulo X, Aula Y — Autor]` quando há autor, e `[Módulo X, Aula Y]` quando não há.
 
 Erros: `400` payload inválido · `401` `/ingest` sem token · `503` Qdrant indisponível · `500` falha do provedor LLM (com `request_id` no corpo).
 

@@ -17,6 +17,8 @@ import uuid
 import httpx
 import streamlit as st
 
+from grifo.citation import link_com_timestamp, timestamp_para_segundos
+
 #: 127.0.0.1 pelo mesmo motivo do QDRANT_URL: ver EVALUATION.md 4.5.
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
 CURSO = os.environ.get("CURSO_NOME", "Curso Exemplo")
@@ -26,20 +28,21 @@ VIDEO_BASE_URL = os.environ.get("VIDEO_BASE_URL", "")
 API_TIMEOUT = float(os.environ.get("API_TIMEOUT", "90"))
 
 
-def timestamp_to_seconds(timestamp: str) -> int:
-    """ "HH:MM:SS" ou "MM:SS" -> segundos, para o parâmetro ?t= do player."""
-    partes = [int(p) for p in timestamp.split(":")]
-    while len(partes) < 3:
-        partes.insert(0, 0)
-    h, m, s = partes
-    return h * 3600 + m * 60 + s
+#: A conta de segundos mora em `grifo.citation`, com o montador de link: a UI e a
+#: chain precisam da MESMA, e duas cópias divergem no primeiro ajuste.
+timestamp_to_seconds = timestamp_para_segundos
 
 
 def video_link(timestamp: str | None) -> str | None:
-    """Link para o minuto do vídeo quando há player configurado (FR-62)."""
+    """Fallback do FR-62 para corpus sem `fonte_url`: uma base de player por curso.
+
+    A fonte já chega com `url` própria quando o corpus declara a URL da aula — é o
+    caso de material publicado em vídeo, em que cada aula tem a sua. Esta base única
+    continua atendendo quem tem um player só para o curso inteiro.
+    """
     if not timestamp or not VIDEO_BASE_URL:
         return None
-    return f"{VIDEO_BASE_URL.rstrip('/')}?t={timestamp_to_seconds(timestamp)}"
+    return link_com_timestamp(VIDEO_BASE_URL.rstrip("/"), timestamp)
 
 
 def agrupar_por_aula(sources: list[dict]) -> list[dict]:
@@ -62,15 +65,19 @@ def agrupar_por_aula(sources: list[dict]) -> list[dict]:
         if fonte["score"] > atual["score"]:
             atual["score"] = fonte["score"]
             atual["timestamp"] = fonte.get("timestamp")
+            atual["url"] = fonte.get("url")
     return sorted(aulas.values(), key=lambda f: (not f["cited"], -f["score"]))
 
 
 def linha_fonte(fonte: dict) -> str:
     """Markdown de uma aula na lista de fontes."""
-    linha = f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']} · score `{fonte['score']}`"
+    linha = f"**Módulo** {fonte['modulo']} · **Aula** {fonte['aula']}"
+    if fonte.get("autor"):
+        linha += f" · _{fonte['autor']}_"
+    linha += f" · score `{fonte['score']}`"
     if fonte.get("trechos", 1) > 1:
         linha += f" · {fonte['trechos']} trechos"
-    link = video_link(fonte.get("timestamp"))
+    link = fonte.get("url") or video_link(fonte.get("timestamp"))
     if link:
         linha += f" · [abrir no minuto {fonte['timestamp']}]({link})"
     elif fonte.get("timestamp"):

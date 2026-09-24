@@ -50,6 +50,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Montagem do corpus de video (scripts/baixar_aulas.py). Fora do runtime: quem so
+# roda a API nao precisa disto. yt-dlp desatualizado quebra sozinho quando o YouTube
+# muda -- em 2026-09-24 a versao de marco dava 403 no audio e "format is not
+# available" em todo player_client; atualizar resolveu. Trate erro de download como
+# "atualize o yt-dlp" antes de suspeitar do resto.
+corpus = [
+    "yt-dlp>=2026.8",
+    "faster-whisper>=1.2,<2",
+]
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-cov>=5.0,<7",

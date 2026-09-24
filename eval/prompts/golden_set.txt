@@ -1,0 +1,25 @@
+Você recebe um TRECHO de transcrição de uma aula em vídeo e escreve UMA pergunta de
+aluno que esse trecho responde.
+
+Regras:
+
+1. A pergunta tem de ser autossuficiente: nada de "no trecho", "no vídeo", "o professor
+   disse". Quem lê a pergunta não viu a aula.
+2. Classifique a pergunta que VOCÊ escreveu, em `categoria`:
+   - factual: a resposta é um número, nome próprio, sigla ou ferramenta dito no
+     trecho. Só escolha isto se o trecho REALMENTE traz esse dado.
+   - conceitual: sobre a ideia, o princípio ou o raciocínio.
+   Não force factual: rotular de factual uma pergunta conceitual estraga a medição
+   do BM25, que é justamente o que a fatia factual existe para testar.
+3. `expected_answer_contains`: de 2 a 3 expressões CURTAS (1 a 4 palavras), copiadas
+   LITERALMENTE do trecho, que uma boa resposta conteria. Não invente sinônimo.
+4. Escreva como aluno escreve: direto, às vezes sem acento ou com erro de digitação.
+   Não imite linguagem de prova.
+5. Se o trecho não tiver conteúdo suficiente — saudação, aplauso, digressão, anedota
+   solta, fala cortada no meio —, devolva `pular: true` e nada mais. Pular é a resposta
+   certa com frequência: transcrição de palestra tem muito trecho sem substância.
+
+{reforco}TRECHO (aula "{aula}"):
+---
+{trecho}
+---

@@ -243,3 +243,27 @@ conversa era redesenhada. Virou uma função só, e um teste no `AppTest` do Str
 que falha na versão anterior — trava isso. O timeout de 30s derrubava a primeira
 pergunta no modelo local (30,3s medidos), e todo erro virava "confira se a API está no
 ar", inclusive o 500 com a API no ar.
+
+**A citação virava texto porque a URL era uma só para o curso inteiro.** O FR-62 existia
+desde a v1, mas atrás de uma `VIDEO_BASE_URL` global — um player por curso. Material
+publicado em vídeo é o oposto: cada aula tem a sua URL, e por isso a demo mostrava
+"referência: 00:22:14" em vez de um link. A URL passou a ser metadado da aula
+(`fonte_url`, DC-1), vinda de um `fontes.json` opcional na raiz do corpus, e o link com
+minuto é montado num lugar só (`grifo/citation.py`), usado pela chain e pela UI. A API
+devolve `url` pronta em cada fonte: montar link não é trabalho de cada cliente. URL sem
+esquema http(s) reprova a ingestão inteira — citação que não abre é pior que citação
+ausente. A `VIDEO_BASE_URL` continua atendendo quem tem um player único, agora como
+fallback declarado. Nada disso depende de YouTube; é o que permite usar material que já
+está publicado, versionando o mapa de links e não a transcrição.
+
+**A citação dizia de onde veio a fala, mas não de quem era.** Num corpus de palestra
+cada aula é de uma pessoa diferente, e `[Módulo 1, Aula 1]` esconde justamente o que o
+aluno quer saber. O autor virou metadado da aula (`autor`, DC-1), declarado no
+`fontes.json` ao lado da URL, e a citação passou a sair `[Módulo 1, Aula 1 — Alfredo
+Soares]`. O prompt de resposta mudou para isso — decisão explícita, com hash de
+referência atualizado no teste que o trava, e a rodada anterior deixa de ser comparável
+a partir daqui. De quebra, a expressão regular que reconhece citação estava duplicada
+na chain e no `run_eval.py`: duas cópias da mesma regra é uma que se esquece de
+atualizar, e a esquecida seria a do eval, que passaria a medir citação boa como
+ausente. Agora mora em `grifo/citation.py`, junto com quem a escreve.
+
