@@ -289,6 +289,67 @@ Reproduzir: `python eval/serie_temporal.py` — lê só os `metricas_*.json` com
 `serie: true`. O gate contra a última rodada: `python eval/gate_regressao.py` — hoje
 reprova no p95 (3386ms >= 3000ms), que é o estado real do NFR-1 com o contrato.
 
+### 3.6 Corpus público de vídeo — 2026-09-24
+
+O primeiro corpus deste projeto que **qualquer pessoa consegue reconstruir**: seis aulas
+abertas no canal de quem produziu o material, ~2h50 de fala, 332 chunks — quinze vezes o
+`samples/`. O repositório versiona o mapa de links (`corpus/aulas-publicas/fontes.json`),
+nunca a transcrição; `python scripts/baixar_aulas.py` refaz o corpus a partir das URLs.
+Isso muda a natureza do que este capítulo afirma: sai de "confie nos meus números" para
+"rode e confira os meus números".
+
+Golden set de 25 itens (`eval/golden_set_aulas_publicas.jsonl`): 20 perguntas geradas do
+próprio conteúdo e revisadas uma a uma contra o trecho de origem, cobrindo as 6 aulas, e
+5 fora do escopo — três delas do domínio vizinho (Simples Nacional, INPI, férias CLT),
+que é o caso que separa recusa por ausência de recusa por assunto estranho.
+
+Respondedor `openai/gpt-4o-mini`, juiz `openai/gpt-4o` (κ = 0.905, ver 5.9).
+Reproduzir: `GOLDEN_SET=eval/golden_set_aulas_publicas.jsonl python eval/run_eval.py`.
+
+| Métrica | Denominador | Meta | Resultado |
+|---|---|---|---|
+| Recusa correta | 5 fora do escopo | > 0.95 | **1.00** |
+| Taxa de alucinação | 19 respondidas | < 2% | **0.00** — sustentada |
+| Fonte correta nas respondidas | 19 | — | **1.00** |
+| Fonte **citada** correta | 19 | — | **1.00** |
+| Citação espontânea | 19 | — | **1.00** |
+| Taxa de resposta | 25 | — | 0.76 |
+| Cobertura de conteúdo | 19 | ≥ 0.90 | 0.74 — **não atinge** |
+| Faithfulness (RAGAS) | 19 | > 0.90 | 0.87 — **não atinge** |
+| Context Precision (RAGAS) | 19 | > 0.75 | 0.85 |
+| Answer Relevancy (RAGAS) | 19 | > 0.80 | 0.92 |
+| Retry de validação | 25 | — | 0.000 |
+| Latência p95 | 25 | < 3s | 5,06s — **não atinge** |
+| Custo da rodada | 25 perguntas | — | **US$ 0,0063** |
+
+`serie: false`, como manda a regra da seção 2: golden set e corpus fora da configuração
+canônica congelada. Esta rodada se compara apenas consigo mesma.
+
+**A leitura que importa: quando responde, acerta a fonte sempre.** 19 de 19 citando a
+aula certa, com recusa correta em 5 de 5 — inclusive nas três perguntas do domínio
+vizinho. O modo de falha deste pipeline é **recusar demais**, não inventar: das 20
+perguntas respondíveis, uma foi recusada indevidamente (5%), e a análise dela está em
+5.10. Num assistente de curso, errar para esse lado é a escolha certa; mas é uma escolha,
+e ela tem um custo que aparece aqui como taxa de resposta 0.76.
+
+**A alucinação 0.00 está sustentada.** O juiz é o `gpt-4o` calibrado em 97 casos
+(κ = 0.905, acima do piso de 0.70 da regra de publicação em 3.2). É a segunda vez neste
+projeto que essa linha sai liberada, e a primeira num corpus de tamanho real.
+
+**Três metas não atingidas, e as três têm explicação diferente.** A latência (5,06s) é o
+custo do contrato estruturado, o mesmo de 3.4, agravado por um corpus maior. O
+faithfulness 0.87 repete o padrão reconciliado em 5.8 — o juiz não vê fato novo, o RAGAS
+pega elaboração; o pior item saiu em 0.40. A cobertura 0.74 é a mais honesta das três: o
+gabarito é expressão literal de fala de palestra, e o limiar de 0.90 foi calibrado num
+corpus de texto escrito. O limiar é que precisa ser recalibrado para este corpus, não a
+resposta que precisa mudar.
+
+**Um defeito do próprio eval apareceu nesta rodada.** O `metricas_*.json` saiu com
+`corpus: "publico (samples/)"`. A regra era binária — `.local.jsonl` era o corpus real e
+todo o resto virava `samples/` —, e este corpus não é `samples/`. Número publicado com o
+corpus errado no cabeçalho é pior que número ausente: corrigido com teste, a rodada
+errada foi descartada e refeita, e é a refeita que está acima.
+
 ---
 
 ## 4. Calibração de parâmetros
@@ -854,6 +915,57 @@ O κ = 0.897 da fatia `construcao` mede acordo com uma regra mecânica; ampliar 
 humana é o que faria esse número significar acordo com uma pessoa. Também vale a
 ressalva do n efetivo (§7): são 97 casos sobre 33 contextos distintos.
 
+### 5.10 A recusa indevida é de recall, e `fonte@5` não a enxerga
+
+Uma das 20 perguntas respondíveis foi recusada (`ap-001`, "como criar consciência no lead
+para aumentar as vendas?"). O trecho que a responde existe e é direto: *"Criar consciência
+no teu lead. Você tem mais oportunidades de falar com o teu lead… esses canais vão criar
+frequência na mensagem"*. A regra de recusa não falhou — o modelo recusou porque o trecho
+não chegou até ele.
+
+Medido sobre as 65 perguntas do rascunho, cada uma gerada a partir de um trecho conhecido,
+o que permite perguntar se o pipeline devolve **o trecho** e não só a aula:
+
+| O que se mede | @5 | @20 | @50 |
+|---|---|---|---|
+| Busca vetorial traz o trecho de origem | 0.57 | 0.74 | 0.85 |
+| BM25 traz o trecho de origem | **0.85** | 0.92 | 0.98 |
+| Pipeline completo entrega o trecho ao prompt | **0.69** | — | — |
+| Pipeline completo entrega a **aula** certa (`fonte@5`) | **0.94** | — | — |
+
+**A distância entre 0.94 e 0.69 é o ponto.** `fonte@5` — a métrica que este documento
+publica desde a primeira rodada — mede acerto de aula. Um sistema que traz a aula certa e
+o parágrafo errado marca 0.94 e recusa. Num corpus de texto escrito e curto isso quase não
+aparece; num corpus de fala, com 332 chunks sobre 6 aulas longas, aparece em 31% das
+perguntas.
+
+**A causa é onde o corte de similaridade é aplicado.** O FR-24 filtra **chunk a chunk**:
+um trecho que o BM25 rankeou em primeiro por casar a palavra exata é descartado se o
+cosseno dele ficar abaixo de 0.45 — e transcrição de fala produz cosseno baixo o tempo
+todo, porque o embedding dilui num parágrafo de 900 chars cheio de hesitação. Por isso o
+BM25 sozinho (0.85) bate o híbrido (0.69): o gate joga fora justamente o que o BM25 achou.
+Varrer o peso vetorial/BM25 não resolve — de 0.8/0.2 a 0.0/1.0 o resultado fica entre 0.68
+e 0.69, porque o teto é o gate, não a fusão.
+
+Uma alternativa foi medida: usar o corte para decidir **se responde** (algum candidato
+passa do cosseno?) e deixar a ordem do RRF decidir **quais trechos entram**.
+
+| Regra | trecho@5 | recusa correta |
+|---|---|---|
+| Hoje — corte chunk a chunk, pesos 0.6/0.4 | 0.69 | 1.00 |
+| Corte na pergunta, pesos 0.4/0.6 | 0.77 | 1.00 |
+| Corte na pergunta, só BM25 | **0.83** | 1.00 |
+
+**Nada disso foi para produção, e é deliberado.** O ganho foi medido num corpus só — fala
+transcrita, onde o léxico leva vantagem —, e o desenho atual foi calibrado no corpus real,
+onde pode ser o contrário; a evidência de recusa vem de 5 perguntas fora do escopo, das
+quais 3 do domínio vizinho, o que é pouco para autorizar mexer no gate que segura a recusa;
+e o golden set que sustenta a medição é `revisao-assistida`, não revisão humana
+independente. Trocar o default do retrieval com essa base seria repetir o erro que a 5.7
+documenta: mudar o método antes de ter número que aguente a mudança. Fica registrado como
+medição, com o caminho pronto — e o `ap-001` continua no golden set de propósito, porque
+um conjunto em que tudo passa não mede nada.
+
 ---
 
 ## 6. Custo
@@ -920,15 +1032,21 @@ página valha mais do que a medição que a sustenta.
   comprometido com a calibração do juiz (Fase 1), que tem prioridade — um juiz
   calibrado informa mais que um context recall. A linha segue declarada como não
   medida (ver 5.7).
-- **As duas rodadas versionadas são incomparáveis entre si.** Corpus real (64 itens,
-  6.551 chunks, `qwen2.5-7b` local) contra corpus público (55 itens, 22 chunks,
-  `gpt-4o-mini`/`gpt-4o` remotos): corpora, provedores e tamanhos diferentes. Cada
-  tabela deste documento se compara apenas consigo mesma; série temporal exige a
-  configuração canônica congelada da seção 2.
-- **O job de eval está desligado no CI.** Implementado em `.github/workflows/ci.yml`
-  atrás de `vars.ENABLE_EVAL` (seção 2), com gate de regressão pronto. Ligá-lo hoje
-  reprova no p95 (contrato em ~3,5s contra teto de 3s) — estado registrado, não
-  silenciado.
+- **Os três corpora são incomparáveis entre si.** Corpus real (64 itens, 6.551
+  chunks, `qwen2.5-7b` local), corpus de exemplo (55 itens, 22 chunks, remoto) e
+  aulas públicas (25 itens, 332 chunks, remoto): corpora, provedores e tamanhos
+  diferentes. Cada tabela deste documento se compara apenas consigo mesma; série
+  temporal exige a configuração canônica congelada da seção 2, e a rodada 3.6 sai
+  com `serie: false` por isso. **A série canônica continua sendo a do `samples/`** —
+  congelar uma segunda para o corpus de vídeo é decisão a tomar, não efeito colateral.
+- **O job de eval está desligado no CI, e a latência é a razão.** Implementado em
+  `.github/workflows/ci.yml` atrás de `vars.ENABLE_EVAL` (seção 2), com gate de
+  regressão pronto. Ligá-lo hoje reprova no p95: 3,2–3,5s no corpus de exemplo e
+  5,06s no de vídeo, contra teto de 3s. O custo é conhecido e está publicado desde
+  3.4 — é o preço do contrato estruturado, e **foi aceito**: citação validada vale
+  mais que dois segundos, num assistente que o aluno consulta, não num que ele
+  espera digitando. O NFR-1 fica declarado como não atingido em vez de ajustado
+  para caber no resultado.
 - **O kappa do juiz existe, mas 91 dos 97 rótulos são de construção, não de leitura.**
   O juiz da série (`gpt-4o`) tem κ = 0.905 sobre 97 casos (ver 5.9), o que sustenta a
   taxa 0.00 das rodadas que ele julgou; o `qwen2.5-7b` fica em 0.408, e a linha de
@@ -948,6 +1066,21 @@ página valha mais do que a medição que a sustenta.
   no meio da resposta e no comprimento dos negativos; hoje o gap é de 2pp e a razão de
   tamanho 1.05, e a triagem aprova. **A guarda continua rodando**, porque o próximo
   lote de casos pode reintroduzir a assinatura sem ninguém notar.
+- **A recusa indevida do corpus de vídeo é de recall, e a métrica publicada não a
+  enxerga.** `fonte@5` mede acerto de AULA (0.94); o trecho certo chega ao prompt em
+  0.69 das perguntas, e a diferença aparece como recusa indevida em 5% delas (5.10).
+  Há um caminho medido que leva o trecho a 0.83 sem perder recusa, e ele **não** foi
+  para produção: um corpus só, 5 itens fora do escopo e golden set `revisao-assistida`
+  não bastam para mexer no gate que segura a recusa.
+- **O limiar de cobertura de conteúdo não vale para transcrição de fala.** O 0.90 saiu
+  do corpus de exemplo, que é texto escrito; no corpus de vídeo a mesma métrica dá
+  0.74 porque o gabarito é expressão literal de fala. O número está publicado como
+  não atingido, mas o que precisa mudar é o limiar, não a resposta.
+- **O golden set das aulas públicas é `revisao-assistida`, não revisão humana
+  independente.** As 25 perguntas foram geradas do conteúdo e revisadas uma a uma
+  contra o trecho de origem — o que pegou gabarito trocado (uma pergunta sobre "prova
+  social" cujo trecho falava de prova lógica) e nome destroçado pela legenda. Mas
+  quem revisou não é uma segunda pessoa lendo o material: é a mesma cadeia que gerou.
 - **O n efetivo do kappa é 33, não 97.** Os 97 casos confirmados cobrem apenas 33
   contextos distintos: cada contexto aparece até três vezes, uma por família. Kappa supõe
   itens independentes, e itens que compartilham contexto erram juntos — então o número
