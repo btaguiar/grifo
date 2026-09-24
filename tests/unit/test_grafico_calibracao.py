@@ -37,5 +37,5 @@ def test_formato_quebrado_falha_alto(tmp_path, monkeypatch):
     falso = tmp_path / "EVALUATION.md"
     falso.write_text("### 4.1 titulo\n\nsem tabela nenhuma\n\n### 4.2 outra\n", encoding="utf-8")
     monkeypatch.setattr(g, "EVALUATION", falso)
-    with pytest.raises(SystemExit, match="4.1"):
+    with pytest.raises(SystemExit, match=r"4\.1"):
         g.ler_tabela()
