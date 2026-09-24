@@ -100,6 +100,24 @@ async def payload_invalido_400(_request, exc):
     return JSONResponse(status_code=400, content={"detail": exc.errors()})
 
 
+def classificar_falha(exc: BaseException) -> tuple[int, str]:
+    """De qual peça foi a culpa: índice fora do ar ou provedor de LLM.
+
+    Todo erro do `/ask` respondia "falha do provedor LLM". Em 2026-09-24 o Qdrant caiu
+    e a API acusou o LLM: o log dizia `ResponseHandlingException: conexão recusada` e a
+    resposta dizia outra coisa. Mensagem que culpa a peça errada custa o tempo de quem
+    for procurar o problema no lugar errado -- foi o que aconteceu.
+
+    A cadeia inteira é percorrida porque o erro do cliente Qdrant chega embrulhado.
+    """
+    atual: BaseException | None = exc
+    while atual is not None:
+        if type(atual).__module__.startswith("qdrant_client"):
+            return 503, "índice de busca indisponível"
+        atual = atual.__cause__ or atual.__context__
+    return 500, "falha do provedor LLM"
+
+
 @app.post(
     "/ask",
     response_model=AskResponse,
@@ -109,16 +127,21 @@ async def payload_invalido_400(_request, exc):
         "`found: false` significa recusa: `answer` é a string de recusa exata e "
         "`sources` vem vazio (DC-2)."
     ),
-    responses={500: {"description": "Falha do provedor LLM (body traz `request_id`)"}},
+    responses={
+        500: {"description": "Falha do provedor LLM (body traz `request_id`)"},
+        503: {"description": "Índice de busca indisponível (body traz `request_id`)"},
+    },
 )
 def ask(payload: AskRequest) -> AskResponse:
     try:
         resposta = chain.answer(payload.question, payload.curso, payload.session_id)
     except Exception as exc:
         request_id = uuid.uuid4().hex
+        codigo, motivo = classificar_falha(exc)
+        log.exception("falha no /ask (request_id=%s)", request_id)
         raise HTTPException(
-            status_code=500,
-            detail={"request_id": request_id, "error": "falha do provedor LLM"},
+            status_code=codigo,
+            detail={"request_id": request_id, "error": motivo},
         ) from exc
     log_question(
         payload.question,

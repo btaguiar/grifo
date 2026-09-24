@@ -10,7 +10,15 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - ./qdrant_storage:/qdrant/storage
+      # Volume NOMEADO, nao bind mount para o disco do host. Com
+      # `./qdrant_storage:/qdrant/storage` no Windows, todo restart do container
+      # devolvia a colecao com o payload intacto e os VETORES ZERADOS: o texto
+      # continuava la, todo cosseno dava 0.0, o gate do FR-24 recusava tudo e
+      # nenhum erro aparecia. Aconteceu tres vezes em 2026-09-24 antes de virar
+      # hipotese testada: o payload vive no RocksDB (escrita direta) e os vetores
+      # em arquivos mapeados em memoria, que nao sobrevivem ao bind mount do
+      # Docker Desktop. Com volume nomeado sobreviveu a restart e a stop+start.
+      - qdrant_dados:/qdrant/storage
     # Sem healthcheck de propósito: a imagem do Qdrant não traz curl nem wget, e o
     # truque com /dev/tcp depende de bash estar lá. Se não estiver, o healthcheck
     # nunca passa e a `api` fica presa esperando para sempre — falha silenciosa pior
@@ -82,4 +90,5 @@ services:
       - qdrant
 
 volumes:
+  qdrant_dados:
   hf-cache:

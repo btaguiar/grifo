@@ -292,3 +292,20 @@ Fase 2, e a troca foi aceita: citação validada contra os trechos vale mais que
 segundos num assistente que se consulta. O NFR-1 segue declarado como não atingido, em
 vez de a meta ser ajustada para caber no resultado.
 
+**O índice perdia os vetores a cada restart do container, e ninguém via.** Três vezes em
+24/09 a coleção voltou com o payload intacto e os VETORES ZERADOS: o texto continuava lá,
+todo cosseno dava 0.0, o gate do FR-24 recusava tudo e nenhum erro aparecia. Na terceira
+virou hipótese testável, porque o padrão era claro demais para ser acidente. O
+`docker-compose.yml` montava o armazenamento do Qdrant como bind mount para o disco do
+Windows (`./qdrant_storage`). O payload sobrevive porque vive no RocksDB, com escrita
+direta; os vetores ficam em arquivos mapeados em memória, e esses não sobrevivem ao bind
+mount do Docker Desktop. Com volume nomeado o índice aguentou restart e stop+start com
+zero vetores zerados. É o mesmo modo de falha da 5.6, por outra causa: tudo continua
+"funcionando", só que errado.
+
+**E a API culpava a peça errada.** Todo erro do `/ask` respondia "falha do provedor LLM".
+Quando o Qdrant caiu, o log dizia `ResponseHandlingException: conexão recusada` e a
+resposta ao cliente acusava o LLM. Custou tempo de procura no lugar errado, aqui mesmo.
+Agora a cadeia da exceção é percorrida e o erro do índice sai como 503 "índice de busca
+indisponível", separado do 500 do provedor.
+

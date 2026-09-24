@@ -263,3 +263,42 @@ def test_ingest_nao_falha_se_o_reaquecimento_falhar(monkeypatch, tmp_path):
         headers={"X-Ingest-Token": "secreto"},
     )
     assert r.status_code == 200
+
+
+# ── de quem foi a culpa quando o /ask falha ─────────────────────────────────────
+
+
+def test_falha_do_qdrant_nao_e_creditada_ao_llm():
+    """Em 2026-09-24 o Qdrant caiu e a API respondeu "falha do provedor LLM": o log
+    dizia uma coisa e a resposta dizia outra, e a procura foi para o lugar errado."""
+    from qdrant_client.http.exceptions import ResponseHandlingException
+
+    from grifo.api.main import classificar_falha
+
+    codigo, motivo = classificar_falha(ResponseHandlingException(OSError("recusada")))
+    assert codigo == 503
+    assert "índice" in motivo
+
+
+def test_falha_do_qdrant_embrulhada_tambem_e_reconhecida():
+    """O erro chega embrulhado quando a chain re-levanta: a cadeia inteira é olhada."""
+    from qdrant_client.http.exceptions import ResponseHandlingException
+
+    from grifo.api.main import classificar_falha
+
+    try:
+        try:
+            raise ResponseHandlingException(OSError("recusada"))
+        except Exception as interno:
+            raise RuntimeError("falhou o retrieval") from interno
+    except RuntimeError as externo:
+        assert classificar_falha(externo)[0] == 503
+
+
+def test_falha_sem_relacao_com_o_indice_continua_sendo_do_provedor():
+    from grifo.api.main import classificar_falha
+
+    assert classificar_falha(TimeoutError("provedor nao respondeu")) == (
+        500,
+        "falha do provedor LLM",
+    )
