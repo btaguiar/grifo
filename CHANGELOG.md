@@ -267,3 +267,28 @@ na chain e no `run_eval.py`: duas cópias da mesma regra é uma que se esquece d
 atualizar, e a esquecida seria a do eval, que passaria a medir citação boa como
 ausente. Agora mora em `grifo/citation.py`, junto com quem a escreve.
 
+**O projeto passou a medir num corpus que outra pessoa consegue reconstruir.** As duas
+rodadas anteriores mediam o que ninguém tinha: uma no material privado, outra num corpus
+de exemplo de 22 chunks — pequeno demais para o número significar alguma coisa. Seis
+aulas públicas em vídeo (332 chunks, quinze vezes o `samples/`) resolveram os dois lados:
+o repositório versiona o mapa de links e o golden set, nunca a transcrição, e um comando
+reconstrói o corpus a partir das URLs. A primeira rodada saiu com recusa correta 1.00,
+alucinação 0.00 sustentada pelo juiz de κ 0.905, fonte correta em 19 de 19 respondidas e
+custo de US$ 0,0063.
+
+**E ela mostrou que a métrica que o projeto publica não via um erro inteiro.** `fonte@5`
+mede acerto de AULA, e dá 0.94; o trecho certo chega ao prompt em 0.69 das perguntas. A
+diferença aparece como recusa indevida — o sistema traz a aula certa, o parágrafo errado,
+e recusa com razão, porque não recebeu o que responde. A causa é o corte de similaridade
+aplicado chunk a chunk: transcrição de fala produz cosseno baixo, e o trecho que o BM25
+achou pela palavra exata é descartado. Mover o corte para o nível da pergunta leva o
+acerto de trecho a 0.83 sem perder nenhuma recusa — medido, e **não** aplicado: um corpus
+só, cinco itens fora do escopo e um golden set `revisao-assistida` não autorizam mexer no
+gate que segura a recusa. Fica como medição com caminho pronto.
+
+**A latência ficou como está, e isso é decisão, não omissão.** 3,5s no corpus de exemplo,
+5,06s no de vídeo, contra teto de 3s. O custo é do contrato estruturado, medido desde a
+Fase 2, e a troca foi aceita: citação validada contra os trechos vale mais que dois
+segundos num assistente que se consulta. O NFR-1 segue declarado como não atingido, em
+vez de a meta ser ajustada para caber no resultado.
+

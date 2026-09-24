@@ -4,12 +4,15 @@
 
 [![CI](https://github.com/btaguiar/grifo/actions/workflows/ci.yml/badge.svg)](https://github.com/btaguiar/grifo/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
-![Testes](https://img.shields.io/badge/testes-261-green)
+![Testes](https://img.shields.io/badge/testes-262-green)
 
 > **Status:** pipeline completo com avaliação de ponta a ponta, contrato de saída
-> validado por Pydantic, série temporal de métricas e juiz de alucinação calibrado
-> (κ = 0.905). Aberto e datado: latência acima da meta com o contrato (3,5s vs 3s), e
-> a alucinação do corpus real segue não sustentada porque um 7B julgou a si mesmo.
+> validado por Pydantic, série temporal de métricas, juiz de alucinação calibrado
+> (κ = 0.905) e um **corpus público que qualquer pessoa reconstrói** para repetir as
+> medições. A citação abre o vídeo no minuto exato e diz de quem é a fala. Aberto e
+> datado: a latência fica acima da meta com o contrato (3,5s no corpus de exemplo,
+> 5,1s no de vídeo) — custo aceito e publicado, não ajustado para caber; e a
+> alucinação do corpus real segue não sustentada porque um 7B julgou a si mesmo.
 > Nenhum número aqui é estimativa: ou foi medido, ou está vazio.
 
 ---
@@ -71,6 +74,35 @@ por Pydantic/instructor com retry instruído — 1.00 espontânea, zero re-valid
 custo do contrato é publicado: p95 2,58s → 3,53s, tokens de entrada 361 → 561 por
 pergunta. Custo por query derivado dos tokens medidos × preço público datado em
 `config.py` (`custo_usd` no `metricas_*.json`).
+
+### O corpus que você pode reproduzir
+
+As duas colunas acima medem corpora que você não tem: um é privado, o outro é pequeno
+demais para significar alguma coisa (22 chunks). Por isso existe um terceiro, aberto:
+**seis aulas públicas no YouTube, ~2h50, 332 chunks**. O repositório versiona o mapa de
+links, nunca a transcrição — `python scripts/baixar_aulas.py` reconstrói o corpus a
+partir das URLs, e daí os números abaixo saem na sua máquina.
+
+Rodada de 2026-09-24 · 25 perguntas (20 respondíveis + 5 fora do escopo) ·
+respondedor `gpt-4o-mini` · juiz `gpt-4o` (κ 0.905) · **US$ 0,0063 a rodada** ·
+[EVALUATION.md §3.6](EVALUATION.md):
+
+| Recusa correta | Alucinação | Fonte correta nas respondidas | Citação | Taxa de resposta | Faithfulness | p95 |
+|---|---|---|---|---|---|---|
+| **1.00** (5/5) | **0.00** sustentada | **1.00** (19/19) | **1.00** | 0.76 | 0.87 | 5,06s |
+
+```bash
+pip install -e ".[corpus,eval]"
+python scripts/baixar_aulas.py --transcrever          # reconstrói o corpus dos links
+QDRANT_COLLECTION=grifo_aulas_publicas python -m grifo.ingest corpus/aulas-publicas
+GOLDEN_SET=eval/golden_set_aulas_publicas.jsonl python eval/run_eval.py
+```
+
+**Quando responde, acerta a fonte sempre** — 19 de 19 —, e recusa 5 de 5 fora do escopo,
+inclusive as três do domínio vizinho (Simples Nacional, INPI, férias CLT). O modo de
+falha deste pipeline é recusar demais, não inventar: uma das 20 respondíveis foi recusada
+indevidamente, e a causa está medida — o trecho certo chega ao prompt em 0.69 das
+perguntas enquanto a *aula* certa chega em 0.94 ([§5.10](EVALUATION.md)).
 
 **Três leituras que valem mais que os números** (detalhes no EVALUATION.md):
 
@@ -170,19 +202,32 @@ Declaradas para não serem lidas como promessas; detalhes no [EVALUATION.md §7]
 - **A alucinação da linha de base do corpus real não está sustentada.** Aquela rodada foi
   julgada pelo próprio `qwen2.5-7b` que respondia (κ = 0.408, recall 0.364) — o restante
   do que ela mediu segue válido, a linha de alucinação não.
-- **p95 acima da meta com o contrato** (3,5s vs 3s) — custo do structured output,
-  publicado. O job de eval no CI está pronto atrás de `ENABLE_EVAL` e ligá-lo hoje
-  reprova no p95: estado registrado, não silenciado.
+- **p95 acima da meta, e isso foi aceito** — 3,5s no corpus de exemplo e 5,1s no de
+  vídeo, contra teto de 3s. É o custo do structured output, medido e publicado desde
+  a Fase 2: citação validada vale mais que dois segundos num assistente que se
+  consulta. O job de eval no CI está pronto atrás de `ENABLE_EVAL` e reprovaria no
+  p95 — estado registrado, não silenciado nem com a meta ajustada para caber.
+- **O trecho certo chega ao prompt em 0.69 das perguntas; a aula certa, em 0.94.**
+  A diferença aparece como recusa indevida em 5% das perguntas respondíveis do corpus
+  de vídeo, e `fonte@5` — a métrica publicada — não a enxerga. Há um caminho medido
+  que leva a 0.83 sem perder recusa, e ele não foi aplicado: um corpus só, 5 itens
+  fora do escopo e golden set `revisao-assistida` não bastam ([§5.10](EVALUATION.md)).
+- **O golden set das aulas públicas é `revisao-assistida`.** Gerado do conteúdo e
+  revisado item a item contra o trecho de origem — o que pegou gabarito trocado e
+  nome destroçado pela legenda —, mas por quem gerou, não por uma segunda pessoa.
 - **Escopo v1:** um curso por índice (sem multi-tenant), sem autenticação de aluno,
   sem memória de conversa longa, sem streaming.
 - As duas rodadas antigas (corpus real com 7B local; corpus público pré-contrato) não
   formam série entre si — a série canônica começou em 2026-09-06.
 
-**Próximos passos, em ordem de impacto:** resolver a latência do contrato (streaming ou
-prompt mais magro) e ligar o eval no CI; ampliar a fatia de rótulos com procedência
-humana, que hoje são 6 de 97 e é o que faria o κ significar acordo com uma pessoa;
-re-medir o corpus real com o contrato e com juiz `gpt-4o`, que é o que falta para a
-alucinação daquela coluna deixar de ser não sustentada.
+**Próximos passos, em ordem de impacto:** levar o trecho certo ao prompt de 0.69 para
+0.83, movendo o corte de similaridade para o nível da pergunta — medido no §5.10 e ainda
+não aplicado, porque um corpus só não autoriza mexer no gate que segura a recusa;
+ampliar a fatia de rótulos com procedência humana, hoje 6 de 97, que é o que faria o κ
+significar acordo com uma pessoa; re-medir o corpus real com o contrato e com juiz
+`gpt-4o`, que é o que falta para a alucinação daquela coluna deixar de ser não
+sustentada. A latência fica como está: o custo do contrato é conhecido, publicado e
+aceito.
 
 ## 6. Rodar
 
@@ -194,6 +239,11 @@ docker compose run --rm ingest     # indexa o corpus de exemplo
 
 - API e Swagger: http://127.0.0.1:8000/docs
 - UI de chat: http://127.0.0.1:8501
+
+Para rodar sobre as **aulas públicas em vídeo** (corpus maior, com link clicável para o
+minuto da resposta), veja [corpus/aulas-publicas/README.md](corpus/aulas-publicas/README.md):
+o repositório guarda os links, e `python scripts/baixar_aulas.py` reconstrói as
+transcrições na sua máquina.
 
 Pergunte *"Como calcular o CAC?"* e você recebe a resposta com a aula citada. Pergunte
 *"Qual a receita do bolo de cenoura?"* e recebe a recusa — que é o comportamento
@@ -210,7 +260,7 @@ Desenvolvimento:
 ```bash
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                # 261 testes, sem serviços externos
+pytest                                # 262 testes, sem serviços externos
 pytest -m integration                 # 4 testes, exigem Qdrant no ar
 python eval/calibrar_retrieval.py     # varreduras de calibração (sem LLM)
 python eval/run_eval.py               # suite completa de avaliação
