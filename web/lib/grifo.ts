@@ -54,7 +54,7 @@ export function agruparPorAula(fontes: Fonte[]): (Fonte & { trechos: number })[]
 export class FalhaDaApi extends Error {
   constructor(
     message: string,
-    readonly tipo: "timeout" | "http" | "rede"
+    readonly tipo: "timeout" | "http" | "rede" | "limite"
   ) {
     super(message)
   }
@@ -77,9 +77,17 @@ export async function perguntar(question: string, sessionId: string): Promise<Re
       signal: controle.signal,
     })
     if (!r.ok) {
+      // A API manda o motivo em `detail.error`. Ignorá-lo faria a demo dizer "erro
+      // do provedor" justamente no caso mais comum dela: o limite de perguntas, que
+      // tem mensagem própria e acionável.
+      const motivo = await r
+        .json()
+        .then((corpo) => corpo?.detail?.error as string | undefined)
+        .catch(() => undefined)
       throw new FalhaDaApi(
-        `A API respondeu com erro ${r.status}. O log dela diz o motivo, em geral o provedor do LLM.`,
-        "http"
+        motivo ??
+          `A API respondeu com erro ${r.status}. O log dela diz o motivo, em geral o provedor do LLM.`,
+        r.status === 429 ? "limite" : "http"
       )
     }
     return (await r.json()) as Resposta
