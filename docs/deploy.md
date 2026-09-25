@@ -52,30 +52,132 @@ limpa. Coleção criada antes dessa correção se conserta rodando a ingestão d
 
 ## 2. API no Cloud Run
 
-A imagem tem 559MB e a API usa 161MiB de memória em uso (medido no container), então o
-menor tamanho de instância serve.
+A imagem tem 559MB e a API usa 161MiB de memória em uso (medido no container), então a
+menor instância serve. O serviço escala a zero: sem tráfego, nada roda e nada é cobrado.
+
+### 2.1 Conta e ferramenta
+
+1. Instale o `gcloud` (<https://cloud.google.com/sdk/docs/install>) e entre:
 
 ```bash
-gcloud run deploy grifo-api   --source .   --region southamerica-east1   --allow-unauthenticated   --memory 512Mi   --set-env-vars "OPENAI_BASE_URL=https://openrouter.ai/api/v1,LLM_MODEL=openai/gpt-4o-mini,EMBEDDING_PROVIDER=openai,EMBEDDING_MODEL=openai/text-embedding-3-small,QDRANT_URL=https://SEU-ID.REGIAO.aws.cloud.qdrant.io,QDRANT_COLLECTION=grifo_aulas_publicas,CURSO_NOME=G4 Business (aulas públicas),RATE_LIMIT_POR_MINUTO=6,RATE_LIMIT_DIARIO=300"   --set-secrets "OPENAI_API_KEY=grifo-openai:latest,QDRANT_API_KEY=grifo-qdrant:latest"
+gcloud auth login
 ```
 
-Os dois segredos entram no Secret Manager antes, uma vez:
+2. Crie o projeto e ative o faturamento. O cartão é exigido mesmo que a demo caiba no
+   uso gratuito; sem faturamento ativo o deploy falha na hora de construir a imagem.
 
 ```bash
+gcloud projects create grifo-demo --name="Grifo"
+gcloud config set project grifo-demo
+```
+
+Vincule uma conta de faturamento pelo console (Faturamento → Vincular) ou:
+
+```bash
+gcloud billing accounts list
+gcloud billing projects link grifo-demo --billing-account=XXXXXX-XXXXXX-XXXXXX
+```
+
+3. Ative as duas APIs que o deploy a partir do código usa:
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com
+```
+
+O repositório do Artifact Registry (`cloud-run-source-deploy`) é criado sozinho no
+primeiro deploy.
+
+### 2.2 Os dois segredos
+
+```bash
+gcloud services enable secretmanager.googleapis.com
+
 printf '%s' "sua-chave-openrouter" | gcloud secrets create grifo-openai --data-file=-
-printf '%s' "sua-chave-qdrant"    | gcloud secrets create grifo-qdrant --data-file=-
+printf '%s' "sua-chave-qdrant"    | gcloud secrets create grifo-qdrant  --data-file=-
 ```
 
-`printf` em vez de `echo` de propósito: o `echo` acrescenta uma quebra de linha, e a
-chave com `
-` no fim vira cabeçalho `Authorization` inválido. O SDK relata isso como
-`APIConnectionError: Connection error`, que parece falta de internet e não é.
+`printf` em vez de `echo`, e isto não é preciosismo: o `echo` acrescenta uma quebra de
+linha, a chave fica com `\n` no fim e o cabeçalho `Authorization` vira inválido. O SDK
+relata isso como `APIConnectionError: Connection error`, que parece falta de internet e
+manda quem depura para o lugar errado.
 
-**O `Dockerfile` da raiz já serve os dois casos.** Ele escuta em `$PORT`, que o Cloud
-Run injeta (8080) e o compose local não define (fica em 8000). Porta fixa aqui faz o
-deploy falhar no health check sem dizer por quê.
+A conta de serviço que roda o container precisa ler os segredos:
 
-Confira: `curl https://SEU-SERVICO.run.app/health` deve responder `{"status":"ok"}`.
+```bash
+PROJETO=$(gcloud config get-value project)
+NUMERO=$(gcloud projects describe "$PROJETO" --format='value(projectNumber)')
+CONTA="$NUMERO-compute@developer.gserviceaccount.com"
+
+for segredo in grifo-openai grifo-qdrant; do
+  gcloud secrets add-iam-policy-binding "$segredo" \
+    --member="serviceAccount:$CONTA" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+Sem esse passo o deploy sobe e o container morre no start, com `PERMISSION_DENIED` no
+log e um "Revision failed" genérico na tela.
+
+### 2.3 Deploy
+
+Da raiz do repositório:
+
+```bash
+gcloud run deploy grifo-api \
+  --source . \
+  --region southamerica-east1 \
+  --allow-unauthenticated \
+  --memory 512Mi \
+  --max-instances 1 \
+  --set-env-vars "^;^OPENAI_BASE_URL=https://openrouter.ai/api/v1;LLM_MODEL=openai/gpt-4o-mini;EMBEDDING_PROVIDER=openai;EMBEDDING_MODEL=openai/text-embedding-3-small;QDRANT_URL=https://SEU-ID.REGIAO.aws.cloud.qdrant.io;QDRANT_COLLECTION=grifo_aulas_publicas;CURSO_NOME=G4 Business (aulas públicas);RATE_LIMIT_POR_MINUTO=6;RATE_LIMIT_DIARIO=300" \
+  --set-secrets "OPENAI_API_KEY=grifo-openai:latest,QDRANT_API_KEY=grifo-qdrant:latest"
+```
+
+Três detalhes que decidem se funciona:
+
+- **`^;^` no começo do `--set-env-vars`** troca o separador de vírgula para ponto e
+  vírgula. Sem isso, `CURSO_NOME=G4 Business (aulas públicas)` não seria o problema, mas
+  qualquer valor com vírgula (hoje ou amanhã) quebraria a lista em silêncio.
+- **`--max-instances 1`**: as travas de custo contam em memória, por instância. Com
+  réplicas, cada uma teria o próprio contador e o teto real seria o dobro, o triplo.
+- **`--allow-unauthenticated`**: é uma demo pública. Sem isso o front recebe 403.
+
+O `Dockerfile` da raiz é usado automaticamente (o Cloud Build o prefere aos buildpacks),
+e ele escuta em `$PORT` — que o Cloud Run injeta como 8080. Porta fixa no Dockerfile faz
+o deploy falhar no health check sem dizer por quê.
+
+### 2.4 Conferir
+
+```bash
+URL=$(gcloud run services describe grifo-api --region southamerica-east1 --format='value(status.url)')
+curl -s "$URL/health"
+
+curl -s -X POST "$URL/ask" -H "Content-Type: application/json" \
+  -d '{"question":"Qual a diferença entre assistente de IA e agente de IA?","curso":"G4 Business (aulas públicas)"}'
+```
+
+O `/health` responde `{"status":"ok","qdrant":"up",...}`. Se vier `503` com
+`qdrant: down`, o problema é a URL ou a chave do cluster, não o Cloud Run.
+
+Para ver o erro de verdade quando algo falha:
+
+```bash
+gcloud run services logs read grifo-api --region southamerica-east1 --limit 50
+```
+
+### 2.5 Um alerta de orçamento, antes de divulgar o link
+
+```bash
+gcloud billing budgets create \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --display-name="Grifo demo" \
+  --budget-amount=5USD \
+  --threshold-rule=percent=0.5 --threshold-rule=percent=0.9
+```
+
+Isso avisa por e-mail; não corta o serviço. A trava que realmente segura o gasto de LLM
+é o limite de crédito na conta da OpenRouter, porque ela não depende de nada do nosso
+lado estar certo.
 
 ## 3. Front na Vercel
 
