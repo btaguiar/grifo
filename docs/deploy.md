@@ -20,11 +20,13 @@ ficou em 559MB, medido no build. A troca muda o retrieval, então ela foi medida
 ## 1. Índice no Qdrant Cloud
 
 1. Crie um cluster gratuito em <https://cloud.qdrant.io> e guarde a URL e a chave.
+   A URL do painel funciona como está: o Cloud atende em 443, e a porta `:6333`
+   é opcional (testado nas duas formas). A chave aparece uma vez só.
 2. Indexe o corpus a partir da sua máquina (a ingestão fala com o cluster remoto):
 
 ```bash
 python scripts/baixar_aulas.py --transcrever     # reconstrói as transcrições
-QDRANT_URL=https://SEU-CLUSTER.qdrant.io:6333 \
+QDRANT_URL=https://SEU-ID.REGIAO.aws.cloud.qdrant.io \
 QDRANT_API_KEY=... \
 QDRANT_COLLECTION=grifo_aulas_publicas \
 EMBEDDING_PROVIDER=openai \
