@@ -11,10 +11,8 @@ COPY pyproject.toml README.md ./
 COPY src/ ./src/
 RUN pip install --upgrade pip && pip install -e .
 
-COPY app/ ./app/
-COPY .streamlit/ ./.streamlit/
 COPY samples/ ./samples/
 
-EXPOSE 8000 8501
+EXPOSE 8000
 
 CMD ["uvicorn", "grifo.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

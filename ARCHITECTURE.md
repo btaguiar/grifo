@@ -53,7 +53,7 @@ flowchart TB
 | [src/grifo/api/schemas.py](src/grifo/api/schemas.py) | Contratos Pydantic (DC-2) | FR-40 |
 | [src/grifo/analytics/question_log.py](src/grifo/analytics/question_log.py) | Log e relatório de dúvidas | FR-50, FR-51, FR-52 |
 | [src/grifo/config.py](src/grifo/config.py) | Configuração por ambiente | NFR-7 |
-| [app/streamlit_app.py](app/streamlit_app.py) | UI de chat | FR-60 a FR-63 |
+| [web/](web/) | UI de chat (Next + shadcn/ui) | FR-60 a FR-63 |
 
 ---
 

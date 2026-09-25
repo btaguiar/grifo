@@ -46,7 +46,14 @@ class _LocalEmbedder:
     """
 
     def __init__(self, model_name: str) -> None:
-        from sentence_transformers import SentenceTransformer
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as erro:  # pragma: no cover - caminho de instalacao
+            raise RuntimeError(
+                "EMBEDDING_PROVIDER=local exige o extra `local`: "
+                'pip install -e ".[local]". Em producao use EMBEDDING_PROVIDER=openai '
+                "-- o extra arrasta torch e multiplica a imagem por dez."
+            ) from erro
 
         self._model = SentenceTransformer(model_name)
 

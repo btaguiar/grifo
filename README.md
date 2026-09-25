@@ -83,13 +83,13 @@ demais para significar alguma coisa (22 chunks). Por isso existe um terceiro, ab
 links, nunca a transcrição — `python scripts/baixar_aulas.py` reconstrói o corpus a
 partir das URLs, e daí os números abaixo saem na sua máquina.
 
-Rodada de 2026-09-24 · 25 perguntas (20 respondíveis + 5 fora do escopo) ·
-respondedor `gpt-4o-mini` · juiz `gpt-4o` (κ 0.905) · **US$ 0,0063 a rodada** ·
-[EVALUATION.md §3.6](EVALUATION.md):
+Rodada de 2026-09-24 na configuração que vai ao ar (embedding remoto) · 25 perguntas
+(20 respondíveis + 5 fora do escopo) · respondedor `gpt-4o-mini` · juiz `gpt-4o`
+(κ 0.905) · **US$ 0,0065 a rodada** · [EVALUATION.md §3.7](EVALUATION.md):
 
 | Recusa correta | Alucinação | Fonte correta nas respondidas | Citação | Taxa de resposta | Faithfulness | p95 |
 |---|---|---|---|---|---|---|
-| **1.00** (5/5) | **0.00** sustentada | **1.00** (19/19) | **1.00** | 0.76 | 0.87 | 5,06s |
+| **1.00** (5/5) | **0.00** sustentada | **1.00** (20/20) | **1.00** | 0.80 | 0.82 | 3,73s |
 
 ```bash
 pip install -e ".[corpus,eval]"
@@ -98,11 +98,11 @@ QDRANT_COLLECTION=grifo_aulas_publicas python -m grifo.ingest corpus/aulas-publi
 GOLDEN_SET=eval/golden_set_aulas_publicas.jsonl python eval/run_eval.py
 ```
 
-**Quando responde, acerta a fonte sempre** — 19 de 19 —, e recusa 5 de 5 fora do escopo,
-inclusive as três do domínio vizinho (Simples Nacional, INPI, férias CLT). O modo de
-falha deste pipeline é recusar demais, não inventar: uma das 20 respondíveis foi recusada
-indevidamente, e a causa está medida — o trecho certo chega ao prompt em 0.69 das
-perguntas enquanto a *aula* certa chega em 0.94 ([§5.10](EVALUATION.md)).
+**Quando responde, acerta a fonte sempre** — 20 de 20 —, e recusa 5 de 5 fora do escopo,
+inclusive as três do domínio vizinho (Simples Nacional, INPI, férias CLT). Com o
+embedding local, uma das 20 respondíveis era recusada indevidamente; trocar o modelo de
+embedding resolveu, e o antes e depois está medido lado a lado no
+[§3.7](EVALUATION.md). Como subir a demo: [docs/deploy.md](docs/deploy.md).
 
 **Três leituras que valem mais que os números** (detalhes no EVALUATION.md):
 
@@ -143,7 +143,7 @@ Diagrama completo e os três ADRs em [ARCHITECTURE.md](ARCHITECTURE.md). Requisi
 com critério de aceite em [SPEC.md](SPEC.md).
 
 **Stack:** Python 3.11 · LangChain (LCEL) · Qdrant · FastAPI · Pydantic + instructor ·
-Streamlit (UI local) · Next 16 + Tailwind + shadcn/ui (demo pública) · Docker Compose ·
+Next 16 + Tailwind + shadcn/ui (UI) · Docker Compose ·
 GitHub Actions. O LLM e os embeddings entram por qualquer
 API compatível com OpenAI, escolhida só por variável de ambiente — nenhum código muda
 entre elas. Três setups em [.env.example](.env.example): **OpenRouter** (uma chave
@@ -239,8 +239,7 @@ docker compose run --rm ingest     # indexa o corpus de exemplo
 ```
 
 - API e Swagger: http://127.0.0.1:8000/docs
-- UI de chat (Streamlit, local): http://127.0.0.1:8501
-- Demo pública (Next + shadcn): `cd web && npm install && npm run dev` — veja
+- UI de chat: `cd web && npm install && npm run dev` — veja
   [web/README.md](web/README.md). É a tela que mostra a resposta citando a aula
   com link para o minuto do vídeo, e a recusa como estado próprio.
 

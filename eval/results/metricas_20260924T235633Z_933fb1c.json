@@ -1,0 +1,96 @@
+{
+  "timestamp": "20260924T235633Z",
+  "commit": "933fb1c",
+  "corpus": "publico (aulas-publicas)",
+  "serie": false,
+  "metricas": {
+    "total_itens": 25,
+    "recusa_correta": 1.0,
+    "alucinacao": 0.0,
+    "latency_p95_ms": 3727.6,
+    "taxa_resposta": 0.8,
+    "citacao_em_respondidas": 1.0,
+    "fonte_correta_em_respondidas": 1.0,
+    "fonte_citada_correta_em_respondidas": 1.0,
+    "cobertura_conteudo": {
+      "media": 0.7,
+      "total_em_itens": 0.6,
+      "n": 20
+    },
+    "tokens_input_total": 30472,
+    "tokens_output_total": 3277,
+    "custo_usd": 0.006537,
+    "retry_rate": 0.0,
+    "ragas": {
+      "llm_context_precision_without_reference": 0.8769,
+      "llm_context_precision_without_reference_n": 20,
+      "faithfulness": 0.817,
+      "faithfulness_n": 20,
+      "answer_relevancy": 0.871,
+      "answer_relevancy_n": 20
+    }
+  },
+  "config": {
+    "llm_model": "openai/gpt-4o-mini",
+    "eval_llm_model": "openai/gpt-4o",
+    "embedding_model": "openai/text-embedding-3-small",
+    "score_threshold": 0.45,
+    "final_k": 5,
+    "retrieve_k": 20,
+    "rerank_enabled": false,
+    "bm25_rescue_min_idf": 6.0,
+    "golden_set": "golden_set_aulas_publicas.jsonl",
+    "force_citation": false,
+    "llm_structured_mode": "tools",
+    "prompt_sha256": {
+      "answer_system": "0b21a0b063a64cb3a22fab7655c67a4cf59c6f2dd19396d6e7174b448bac248b",
+      "judge": "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6"
+    },
+    "juiz": {
+      "modelo": "openai/gpt-4o",
+      "prompt_sha256": "e50687b4d6efbc56592db038ff87657e4befedbd27b793cccc7e367fb0f61af6",
+      "n_casos": 97,
+      "kappa": 0.9054,
+      "matriz": {
+        "tp": 29,
+        "fp": 0,
+        "fn": 4,
+        "tn": 64
+      },
+      "precisao": 1.0,
+      "recall": 0.8788,
+      "taxa_falso_positivo": 0.0,
+      "acuracia": 0.9588,
+      "por_procedencia": {
+        "construcao": {
+          "n": 91,
+          "kappa": 0.8971,
+          "matriz": {
+            "tp": 26,
+            "fp": 0,
+            "fn": 4,
+            "tn": 61
+          },
+          "precisao": 1.0,
+          "recall": 0.8667,
+          "taxa_falso_positivo": 0.0,
+          "acuracia": 0.956
+        },
+        "humano": {
+          "n": 6,
+          "kappa": 1.0,
+          "matriz": {
+            "tp": 3,
+            "fp": 0,
+            "fn": 0,
+            "tn": 3
+          },
+          "precisao": 1.0,
+          "recall": 1.0,
+          "taxa_falso_positivo": 0.0,
+          "acuracia": 1.0
+        }
+      }
+    }
+  }
+}

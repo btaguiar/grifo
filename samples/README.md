@@ -1,6 +1,6 @@
 # samples/ — corpus aberto, commitado
 
-Este é o corpus **público** do projeto: o que o CI usa, o que a demo no Streamlit Cloud
+Este é o corpus **público** do projeto: o que o CI usa, o que a demo
 indexa, e o que quem clonar o repo consegue rodar. Material real de curso **nunca** vive aqui.
 
 | Corpus | Onde vive | Uso |

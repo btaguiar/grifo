@@ -139,6 +139,11 @@ class Settings(BaseSettings):
     #: origem (`:3000` em dev, o domínio da demo em produção) e sem isto o
     #: navegador barra o `POST /ask` antes de ele sair da máquina.
     cors_origins: str = ""
+    #: Travas de custo da demo pública (0 desliga). Cada pergunta gasta token da chave
+    #: do dono; sem limite, um robô queima crédito durante a noite. Não substituem o
+    #: limite de crédito na conta do provedor, que é a trava que não depende de código.
+    rate_limit_por_minuto: int = 0
+    rate_limit_diario: int = 0
 
     @property
     def origens_cors(self) -> list[str]:

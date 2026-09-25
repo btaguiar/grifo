@@ -309,3 +309,27 @@ resposta ao cliente acusava o LLM. Custou tempo de procura no lugar errado, aqui
 Agora a cadeia da exceção é percorrida e o erro do índice sai como 503 "índice de busca
 indisponível", separado do 500 do provedor.
 
+**A demo precisava caber numa hospedagem gratuita, e o embedding local não cabia.**
+`torch` mais `transformers` levavam a imagem a 2,5GB; sem eles ela ficou em 559MB
+(medido). Os dois saíram do runtime para o extra `local`, que é honesto: o reranker já
+estava desligado por medição e o embedding local sempre foi alternativa, não requisito.
+A troca muda o retrieval, então a configuração que vai ao ar foi medida de novo (3.7),
+pela mesma regra de sempre: publica-se o número da configuração que roda.
+
+**E o embedding remoto resolveu o que a 5.10 apontava.** Nas mesmas 65 perguntas, o
+pipeline entrega o trecho certo em 0.88 contra 0.69, e a busca vetorial pura salta de
+0.57 para 0.89 — sem tocar na política do gate, cuja mudança medida rendia 0.83. É a
+lição da 5.9 na outra ponta do sistema: lá o juiz ruim era o modelo, não o prompt; aqui
+o retrieval ruim era o modelo de embedding, não a regra de corte. Na rodada completa a
+recusa indevida sumiu (20 de 20 respondidas, contra 19) e o p95 caiu de 5,06s para
+3,73s. O que piorou também está publicado: faithfulness de 0.87 para 0.82 e answer
+relevancy de 0.92 para 0.87, com n pequeno demais para separar composição de regressão.
+
+**O Streamlit saiu de cena.** A tela em Next assumiu, e manter duas interfaces é manter
+duas. Foram embora o app, seus testes, o serviço do compose e a dependência.
+
+**Demo pública gasta dinheiro por visitante.** Entraram duas travas em memória (limite
+por IP e teto diário, desligadas por padrão), e o guia de deploy deixa explícito que a
+trava que realmente protege é o limite de crédito na conta do provedor, porque ela não
+depende de o código estar certo.
+
