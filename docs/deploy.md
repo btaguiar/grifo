@@ -213,9 +213,9 @@ enquanto você dorme. Três travas, em ordem de importância:
 
 1. **Limite de crédito na OpenRouter.** É a única que não depende do seu código estar
    certo. Defina um teto mensal baixo na conta.
-2. **Limite por IP na API** (`RATE_LIMIT_POR_MINUTO`, padrão 6). Segura o acesso
+2. **Limite por IP na API** (`RATE_LIMIT_POR_MINUTO`, 6 no comando acima; 0 desliga). Segura o acesso
    repetido sem atrapalhar quem está usando de verdade.
-3. **Teto diário global** (`RATE_LIMIT_DIARIO`, padrão 300 perguntas). Quando estoura,
+3. **Teto diário global** (`RATE_LIMIT_DIARIO`, 300 no comando acima). Quando estoura,
    a API responde 429 até o dia seguinte, e a conta para de crescer.
 
 As duas últimas são em memória e valem por instância. Com `--max-instances 1` no Cloud

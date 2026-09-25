@@ -5,6 +5,13 @@
 [![CI](https://github.com/btaguiar/grifo/actions/workflows/ci.yml/badge.svg)](https://github.com/btaguiar/grifo/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![Testes](https://img.shields.io/badge/testes-262-green)
+[![Demo](https://img.shields.io/badge/demo-no%20ar-yellow)](https://grifo-one.vercel.app)
+
+**Demo pública: <https://grifo-one.vercel.app>** — seis aulas em vídeo indexadas.
+Pergunte algo que está no material e a citação abre o vídeo no minuto exato, com o
+nome de quem fala; pergunte algo que não está e você vê a recusa, que é o
+comportamento que o projeto mede. Front na Vercel, API no Cloud Run, índice no
+Qdrant Cloud — como subir a sua está em [docs/deploy.md](docs/deploy.md).
 
 > **Status:** pipeline completo com avaliação de ponta a ponta, contrato de saída
 > validado por Pydantic, série temporal de métricas, juiz de alucinação calibrado
@@ -232,9 +239,12 @@ aceito.
 
 ## 6. Rodar
 
+Para só ver funcionando, a demo está no ar: <https://grifo-one.vercel.app>.
+Para rodar na sua máquina, sobre o corpus de exemplo:
+
 ```bash
 cp .env.example .env               # preencha só OPENAI_API_KEY
-docker compose up -d               # sobe Qdrant + API + UI
+docker compose up -d               # sobe Qdrant + API
 docker compose run --rm ingest     # indexa o corpus de exemplo
 ```
 
@@ -263,7 +273,7 @@ Desenvolvimento:
 ```bash
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                # 262 testes, sem serviços externos
+pytest                                # 258 testes, sem serviços externos
 pytest -m integration                 # 4 testes, exigem Qdrant no ar
 python eval/calibrar_retrieval.py     # varreduras de calibração (sem LLM)
 python eval/run_eval.py               # suite completa de avaliação

@@ -125,7 +125,7 @@ Ordem de corte sob pressão (SPEC seção 11): corte reranking e BM25 **antes** 
 |---|---|---|---|
 | NFR-1 | Latência p95 de `/ask` | < 3s | Medida sobre o golden set, registrada em EVALUATION.md |
 | NFR-2 | Custo de API rastreável | Contador de tokens desde o dia 1 | Campo `tokens` no log + limite de gasto na conta OpenAI |
-| NFR-3 | Subida completa em um comando | `docker compose up` | Qdrant + API + UI no ar |
+| NFR-3 | Subida completa em um comando | `docker compose up` | Qdrant + API no ar; a UI roda com `npm run dev` |
 | NFR-4 | Nenhum arquivo de material no histórico do git | Zero | `.gitignore` no primeiro commit; auditoria antes de publicar o repo |
 | NFR-5 | CI verde: lint + testes + eval | Badge no README | GitHub Actions em todo push |
 | NFR-6 | Cobertura de testes em ingestão e geração | > 70% | Relatório no CI |

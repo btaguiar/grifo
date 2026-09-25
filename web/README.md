@@ -5,6 +5,8 @@ em poucos segundos, clicar numa sugestão e ver a resposta citando a aula com li
 minuto do vídeo. A recusa tem peso visual próprio, porque é o que distingue este
 assistente de um que responde qualquer coisa com confiança.
 
+No ar em <https://grifo-one.vercel.app>, contra a API no Cloud Run.
+
 ```bash
 npm install
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
