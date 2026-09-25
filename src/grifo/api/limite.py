@@ -6,7 +6,7 @@ substitui o limite de crédito na conta do provedor -- essa é a única que não
 de o código estar certo -- mas evita que o teto seja atingido por acesso repetido.
 
 Contadores em memória: valem por instância. O deploy da demo roda uma instância só
-(Hugging Face Spaces), então basta. Com réplicas, isto precisaria de contador
+(Cloud Run com `--max-instances 1`), então basta. Com réplicas, isto precisaria de contador
 compartilhado, e a alternativa honesta seria um Redis, não fingir que funciona.
 """
 

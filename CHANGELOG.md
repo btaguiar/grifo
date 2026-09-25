@@ -333,3 +333,37 @@ por IP e teto diário, desligadas por padrão), e o guia de deploy deixa explíc
 trava que realmente protege é o limite de crédito na conta do provedor, porque ela não
 depende de o código estar certo.
 
+## Setembro de 2026 — no ar
+
+**A demo saiu da máquina.** Front na Vercel, API no Cloud Run em São Paulo, índice no
+Qdrant Cloud na mesma região. O passo a passo está em [docs/deploy.md](docs/deploy.md);
+o que segue são as coisas que só apareceram quando o deploy deixou de ser hipótese.
+
+**O Qdrant Cloud não filtra campo sem índice.** Local, a mesma consulta funciona: o
+Qdrant embutido aceita filtrar `metadata.curso` sem índice de payload e paga o preço em
+varredura. O Cloud recusa com `400 Bad request: Index required but not found`. A
+ingestão terminava limpa e quem quebrava era a primeira pergunta — o erro aparece longe
+de onde nasce. A ingestão passou a criar o índice.
+
+**A hospedagem gratuita que o guia recomendava virou paga.** O Spaces Docker do Hugging
+Face passou a exigir plano PRO, e a recomendação anterior tinha sido escrita de memória,
+não conferida na fonte. Trocada por Cloud Run, que escala a zero e injeta a porta em
+`$PORT` — porta fixa no `Dockerfile` faz o deploy falhar no health check sem dizer por
+quê. Ficou no guia a advertência de conferir os termos na hora, em vez de confiar na
+tabela.
+
+**Um `\r` invisível fingiu ser falta de internet.** Extrair a chave do `.env` no Windows
+com `grep | cut` leva junto o CRLF. O cabeçalho `Authorization` fica inválido, o SDK da
+OpenAI embrulha a falha de transporte como `APIConnectionError: Connection error`, e a
+procura começa pelo lugar errado: DNS e HTTPS funcionavam de dentro do container.
+
+**Origem diferente é o navegador barrando antes de a requisição sair.** O front hospedado
+noutro domínio precisa estar em `CORS_ORIGINS`; sem isso o `POST /ask` nunca chega à API,
+e o front, que só vê a falha do `fetch`, acusa a API de estar fora do ar.
+
+**E a tela ganhou o espaço que ela mesma reservava.** O bloco fixo do chat descontava a
+própria altura embaixo da conversa para não esconder a última resposta. A reserva era
+desnecessária, porque a página continua depois do chat: sobrava um vão do tamanho do
+bloco entre a resposta e o campo. Sem a reserva, o vão ficou em 19px, medido em produção.
+As cinco sugestões, que ocupavam quatro linhas dentro do bloco, agora se recolhem atrás
+de um botão depois da primeira pergunta — o bloco caiu de 230px para 167px.
