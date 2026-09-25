@@ -22,7 +22,7 @@ Responder dúvidas de alunos de curso online usando exclusivamente o conteúdo o
 
 ### 2.1 Dentro da v1
 
-Ingestão multi-formato · metadados ricos de citação · busca híbrida com reranking · geração com citação obrigatória · recusa por threshold · API FastAPI · UI Streamlit · suite de avaliação com golden set · log de perguntas e relatório de dúvidas frequentes.
+Ingestão multi-formato · metadados ricos de citação · busca híbrida com reranking · geração com citação obrigatória · recusa por threshold · API FastAPI · UI web · suite de avaliação com golden set · log de perguntas e relatório de dúvidas frequentes.
 
 ### 2.2 Fora da v1 (não negociável)
 
@@ -112,7 +112,7 @@ Ordem de corte sob pressão (SPEC seção 11): corte reranking e BM25 **antes** 
 
 | ID | Req | Pri | Aceite |
 |---|---|---|---|
-| FR-60 | Chat Streamlit com histórico de sessão | P0 | Conversa de 5 turnos mantém histórico na tela |
+| FR-60 | Chat com histórico de sessão | P0 | Conversa de 5 turnos mantém histórico na tela |
 | FR-61 | Fontes exibidas abaixo da resposta, com módulo, aula e score | P0 | Visível na demo |
 | FR-62 | Timestamp vira link clicável para o minuto do vídeo | P1 | Link abre no ponto certo (ou copia a referência quando não há URL) |
 | FR-63 | Estado de recusa visualmente distinto da resposta normal | P1 | Momento mais forte do vídeo de 2 min |
@@ -295,6 +295,6 @@ O jargão técnico do corpus (`pulse`, `apqc`) fica: é o que sustenta o ADR 001
 | README | Ordem: problema em 3 linhas → GIF da demo → **métricas** → arquitetura → como rodar → limitações. Métricas antes da arquitetura. |
 | ARCHITECTURE.md | Diagrama + os 3 ADRs |
 | EVALUATION.md | Metodologia, tabela de métricas, gráfico de calibração do threshold |
-| Demo pública | Streamlit Cloud apontando para o corpus de `samples/` |
+| Demo pública | Front na Vercel, API em container, índice no Qdrant Cloud |
 | Vídeo 2 min | 0:00 problema · 0:20 demo com citação clicável · 1:10 **a recusa** · 1:35 métricas e próximos passos |
 | Post LinkedIn | Caso técnico: problema, decisão de arquitetura, número medido, o que deu errado. Sem travessão. |

@@ -53,20 +53,6 @@ services:
     depends_on:
       - qdrant
 
-  ui:
-    build:
-      context: .
-      target: runtime
-    container_name: grifo-ui
-    command: streamlit run app/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
-    env_file: .env
-    environment:
-      API_URL: http://api:8000
-    ports:
-      - "8501:8501"
-    depends_on:
-      - api
-
   # Ingestao sob demanda, no MESMO ambiente da api -- quem clonou o repo nao precisa
   # ter Python nem as dependencias na maquina:
   #     docker compose run --rm ingest

@@ -350,6 +350,60 @@ todo o resto virava `samples/` —, e este corpus não é `samples/`. Número pu
 corpus errado no cabeçalho é pior que número ausente: corrigido com teste, a rodada
 errada foi descartada e refeita, e é a refeita que está acima.
 
+### 3.7 Configuração de produção: embedding remoto — 2026-09-24
+
+A demo pública precisa caber numa hospedagem gratuita, e o embedding local não cabe:
+`torch` (526MB) mais `transformers` (113MB) levam a imagem a ~2,5GB. Com embedding por
+API a imagem fica em ~250MB. A troca não é só de empacotamento — muda o retrieval —,
+então a configuração que vai ao ar foi medida de novo. É a mesma regra da seção 2:
+publica-se o número da configuração que roda, não o da que era conveniente medir.
+
+Mesmo corpus, mesmo golden set (25 itens), mesmo respondedor e mesmo juiz. Muda o
+embedding: `paraphrase-multilingual-MiniLM-L12-v2` local (384 dims) contra
+`openai/text-embedding-3-small` remoto (1536 dims).
+
+| Métrica | Local (3.6) | Remoto (produção) |
+|---|---|---|
+| Recusa correta | 1.00 | 1.00 |
+| Taxa de alucinação | 0.00 | 0.00 |
+| **Taxa de resposta** | 0.76 (19 de 20) | **0.80 (20 de 20)** |
+| Fonte correta nas respondidas | 1.00 (19/19) | 1.00 (20/20) |
+| Citação espontânea | 1.00 | 1.00 |
+| **Latência p95** | 5,06s | **3,73s** |
+| Context Precision (RAGAS) | 0.85 | **0.88** |
+| Faithfulness (RAGAS) | 0.87 | 0.82 |
+| Answer Relevancy (RAGAS) | 0.92 | 0.87 |
+| Cobertura de conteúdo | 0.74 | 0.70 |
+| Custo da rodada | US$ 0,0063 | US$ 0,0065 |
+
+**A recusa indevida acabou.** As 20 perguntas respondíveis foram respondidas, contra 19
+antes: o item que a 5.10 documenta como falha de recall passou a receber o trecho que o
+responde. E a latência caiu 26%, porque a chamada de embedding remoto custa menos que
+carregar e rodar o modelo local a cada consulta.
+
+**O que piorou, dito com o mesmo destaque.** Faithfulness caiu de 0.87 para 0.82 e
+answer relevancy de 0.92 para 0.87. Parte disso é composição: a pergunta que antes era
+recusada agora entra na conta, e ela é a mais difícil do conjunto. Mas a queda é maior
+que um item explicaria sozinho, e a explicação honesta é que não há medição suficiente
+para separar as duas causas — 20 respondidas é um n pequeno para diferenças de cinco
+pontos. Fica registrado como resultado, não como ruído descartado.
+
+**A troca de embedding resolve o que a 5.10 apontava.** Sobre as mesmas 65 perguntas do
+rascunho:
+
+| Mesmas 65 perguntas | Local | Remoto |
+|---|---|---|
+| Pipeline entrega o trecho certo @5 | 0.69 | **0.88** |
+| Só busca vetorial @5 | 0.57 | **0.89** |
+| Só busca vetorial @20 | 0.74 | 0.94 |
+
+A mudança de política do gate, medida na 5.10, levava o pipeline a 0.83. Trocar o
+embedding leva a 0.88 **sem tocar no gate** — e o salto do vetorial puro (0.57 para
+0.89) mostra onde estava o gargalo. É a mesma lição da 5.9, na outra ponta do sistema:
+ali o juiz ruim era o modelo, não o prompt; aqui o retrieval ruim era o modelo de
+embedding, não a regra de corte. Duas vezes o mesmo erro de diagnóstico foi evitado por
+medir antes de mexer.
+
 ---
 
 ## 4. Calibração de parâmetros
@@ -955,6 +1009,12 @@ passa do cosseno?) e deixar a ordem do RRF decidir **quais trechos entram**.
 | Hoje — corte chunk a chunk, pesos 0.6/0.4 | 0.69 | 1.00 |
 | Corte na pergunta, pesos 0.4/0.6 | 0.77 | 1.00 |
 | Corte na pergunta, só BM25 | **0.83** | 1.00 |
+
+**O que produção fez com isso (3.7).** A troca do embedding local pelo remoto levou o
+pipeline a 0.88 nas mesmas 65 perguntas, sem tocar no gate, e o vetorial puro de 0.57
+para 0.89. O gargalo era o modelo de embedding, não a política de corte. A alternativa
+abaixo continua medida e não aplicada, agora por um motivo a mais: o problema que ela
+resolvia encolheu.
 
 **Nada disso foi para produção, e é deliberado.** O ganho foi medido num corpus só — fala
 transcrita, onde o léxico leva vantagem —, e o desenho atual foi calibrado no corpus real,

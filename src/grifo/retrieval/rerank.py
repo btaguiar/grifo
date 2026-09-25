@@ -19,7 +19,14 @@ _MODEL: Any = None
 def _get_model() -> Any:
     global _MODEL
     if _MODEL is None:
-        from sentence_transformers import CrossEncoder
+        try:
+            from sentence_transformers import CrossEncoder
+        except ImportError as erro:  # pragma: no cover - caminho de instalacao
+            raise RuntimeError(
+                'RERANK_ENABLED=true exige o extra `local`: pip install -e ".[local]". '
+                "Ele esta desligado por medicao (EVALUATION.md 4.4): o cross-encoder "
+                "ms-marco PIORA a ordem em portugues."
+            ) from erro
 
         _MODEL = CrossEncoder(settings.reranker_model)
     return _MODEL

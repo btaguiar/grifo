@@ -17,12 +17,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from grifo.analytics.question_log import log_question, top_questions
+from grifo.api.limite import Limitador
 from grifo.api.schemas import (
     AskRequest,
     AskResponse,
@@ -84,6 +85,10 @@ app = FastAPI(
 #: é explícita de propósito: `allow_origins=["*"]` combinado com credenciais é
 #: recusado pelo próprio navegador, e liberar tudo num serviço que gasta token
 #: de LLM é convidar terceiro a gastar por você.
+#: Vive no módulo porque o contador é por processo: instanciar por requisição
+#: zeraria a contagem a cada pergunta, que é o mesmo que não ter limite.
+_limitador = Limitador(settings.rate_limit_por_minuto, settings.rate_limit_diario)
+
 _origens = settings.origens_cors
 if _origens:
     app.add_middleware(
@@ -129,10 +134,15 @@ def classificar_falha(exc: BaseException) -> tuple[int, str]:
     ),
     responses={
         500: {"description": "Falha do provedor LLM (body traz `request_id`)"},
+        429: {"description": "Limite da demo atingido (por IP ou teto diário)"},
         503: {"description": "Índice de busca indisponível (body traz `request_id`)"},
     },
 )
-def ask(payload: AskRequest) -> AskResponse:
+def ask(payload: AskRequest, request: Request) -> AskResponse:
+    ip = request.client.host if request.client else "desconhecido"
+    barrado = _limitador.checar(ip)
+    if barrado:
+        raise HTTPException(status_code=429, detail={"error": barrado})
     try:
         resposta = chain.answer(payload.question, payload.curso, payload.session_id)
     except Exception as exc:
