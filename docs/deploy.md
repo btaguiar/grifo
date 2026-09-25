@@ -1,13 +1,19 @@
 # Deploy da demo pública
 
-Três peças, três serviços gratuitos. O front é estático, a API é um container e o
-índice é gerenciado. Nenhuma delas guarda material do curso: o corpus é reconstruído a
+Três peças, três serviços. O front é estático, a API é um container e o índice é
+gerenciado; os três cabem no uso gratuito de cada plataforma, e o Cloud Run pede cartão
+sem cobrar dentro do free tier.
+
+**Uma advertência que vale mais que qualquer recomendação:** plano gratuito muda. Este
+guia recomendava Hugging Face Spaces até o Spaces Docker virar recurso pago, em
+setembro de 2026. Confira os termos na hora de criar a conta em vez de confiar nesta
+tabela. Nenhuma delas guarda material do curso: o corpus é reconstruído a
 partir dos links (`corpus/aulas-publicas/fontes.json`).
 
 | Peça | Serviço | Custo | Por quê |
 |---|---|---|---|
 | Front (`web/`) | Vercel | gratuito | casa do Next: build a cada push, preview por PR |
-| API (FastAPI) | Hugging Face Spaces (Docker) | gratuito | sem cartão, 16GB de RAM, Dockerfile direto do repo |
+| API (FastAPI) | Google Cloud Run | free tier cobre a demo | escala a zero, cold start de segundos, a porta vem injetada |
 | Índice | Qdrant Cloud | gratuito até 1GB | 332 chunks ocupam alguns MB |
 
 **A configuração de produção usa embedding remoto**, e isso não é detalhe de
@@ -44,34 +50,32 @@ Qdrant Cloud recusa com `400 Bad request: Index required but not found for
 "metadata.curso"`. O erro só aparece na primeira consulta, com a ingestão já terminada
 limpa. Coleção criada antes dessa correção se conserta rodando a ingestão de novo.
 
-## 2. API no Hugging Face Spaces
+## 2. API no Cloud Run
 
-1. Crie um Space do tipo **Docker** (visibilidade pública, hardware CPU basic).
-2. No Space, aponte para este repositório ou copie `deploy/Dockerfile.hf` como
-   `Dockerfile` na raiz do Space, junto de `pyproject.toml`, `README.md` e `src/`.
-3. Em **Settings → Variables and secrets**, defina:
+A imagem tem 559MB e a API usa 161MiB de memória em uso (medido no container), então o
+menor tamanho de instância serve.
 
-| Nome | Tipo | Valor |
-|---|---|---|
-| `OPENAI_API_KEY` | secret | a chave da OpenRouter |
-| `OPENAI_BASE_URL` | variable | `https://openrouter.ai/api/v1` |
-| `LLM_MODEL` | variable | `openai/gpt-4o-mini` |
-| `EMBEDDING_PROVIDER` | variable | `openai` |
-| `EMBEDDING_MODEL` | variable | `openai/text-embedding-3-small` |
-| `QDRANT_URL` | variable | a URL do cluster |
-| `QDRANT_API_KEY` | secret | a chave do cluster |
-| `QDRANT_COLLECTION` | variable | `grifo_aulas_publicas` |
-| `CURSO_NOME` | variable | o mesmo valor usado na ingestão |
-| `CORS_ORIGINS` | variable | o domínio do front na Vercel |
+```bash
+gcloud run deploy grifo-api   --source .   --region southamerica-east1   --allow-unauthenticated   --memory 512Mi   --set-env-vars "OPENAI_BASE_URL=https://openrouter.ai/api/v1,LLM_MODEL=openai/gpt-4o-mini,EMBEDDING_PROVIDER=openai,EMBEDDING_MODEL=openai/text-embedding-3-small,QDRANT_URL=https://SEU-ID.REGIAO.aws.cloud.qdrant.io,QDRANT_COLLECTION=grifo_aulas_publicas,CURSO_NOME=G4 Business (aulas públicas),RATE_LIMIT_POR_MINUTO=6,RATE_LIMIT_DIARIO=300"   --set-secrets "OPENAI_API_KEY=grifo-openai:latest,QDRANT_API_KEY=grifo-qdrant:latest"
+```
 
-O `CURSO_NOME` precisa bater com o da ingestão: o retrieval filtra por ele, e um valor
-diferente devolve zero resultado para tudo, sem erro nenhum.
+Os dois segredos entram no Secret Manager antes, uma vez:
 
-4. Confira: `https://SEU-SPACE.hf.space/health` deve responder `{"status":"ok"}`.
+```bash
+printf '%s' "sua-chave-openrouter" | gcloud secrets create grifo-openai --data-file=-
+printf '%s' "sua-chave-qdrant"    | gcloud secrets create grifo-qdrant --data-file=-
+```
 
-**O Space dorme por inatividade.** O primeiro acesso depois da soneca leva alguns
-segundos. Para uma demo de portfólio isso é aceitável; se incomodar, o plano pago
-mantém acordado.
+`printf` em vez de `echo` de propósito: o `echo` acrescenta uma quebra de linha, e a
+chave com `
+` no fim vira cabeçalho `Authorization` inválido. O SDK relata isso como
+`APIConnectionError: Connection error`, que parece falta de internet e não é.
+
+**O `Dockerfile` da raiz já serve os dois casos.** Ele escuta em `$PORT`, que o Cloud
+Run injeta (8080) e o compose local não define (fica em 8000). Porta fixa aqui faz o
+deploy falhar no health check sem dizer por quê.
+
+Confira: `curl https://SEU-SERVICO.run.app/health` deve responder `{"status":"ok"}`.
 
 ## 3. Front na Vercel
 
@@ -80,10 +84,10 @@ mantém acordado.
 
 | Nome | Valor |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | `https://SEU-SPACE.hf.space` |
+| `NEXT_PUBLIC_API_URL` | `https://SEU-SERVICO.run.app` |
 | `NEXT_PUBLIC_CURSO` | o mesmo `CURSO_NOME` |
 
-3. Depois do primeiro deploy, volte ao Space e ponha o domínio da Vercel em
+3. Depois do primeiro deploy, volte ao Cloud Run e ponha o domínio da Vercel em
    `CORS_ORIGINS`. Sem isso o navegador barra o `POST /ask` antes de ele sair da
    máquina do visitante, e a tela erra em silêncio.
 
@@ -112,8 +116,10 @@ enquanto você dorme. Três travas, em ordem de importância:
 3. **Teto diário global** (`RATE_LIMIT_DIARIO`, padrão 300 perguntas). Quando estoura,
    a API responde 429 até o dia seguinte, e a conta para de crescer.
 
-As duas últimas são em memória e valem por instância. O Space roda uma instância só,
-então basta; num deploy com réplicas isso precisaria de um contador compartilhado.
+As duas últimas são em memória e valem por instância. Com `--max-instances 1` no Cloud
+Run a conta fecha; acima disso cada réplica teria o próprio contador, e o teto real
+seria o dobro, o triplo. Um contador compartilhado exigiria Redis, e fingir que
+funciona sem ele seria pior que não ter.
 
 Uma conta grosseira do custo por visitante, com os números medidos em 3.7: cada pergunta
 custa cerca de US$ 0,00026. Mil perguntas por dia dão US$ 0,26. O teto diário existe
