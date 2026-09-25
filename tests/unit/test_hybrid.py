@@ -182,7 +182,11 @@ def test_ensure_collection_recusa_dimensao_divergente(monkeypatch):
     monkeypatch.setattr(
         vector_store,
         "_client",
-        lambda: SimpleNamespace(collection_exists=lambda n: True, get_collection=lambda n: cfg),
+        lambda: SimpleNamespace(
+            collection_exists=lambda n: True,
+            get_collection=lambda n: cfg,
+            create_payload_index=lambda **kwargs: None,
+        ),
     )
     with pytest.raises(ValueError, match="256"):
         vector_store.ensure_collection("grifo", 384)
@@ -197,9 +201,55 @@ def test_ensure_collection_aceita_dimensao_igual(monkeypatch):
     monkeypatch.setattr(
         vector_store,
         "_client",
-        lambda: SimpleNamespace(collection_exists=lambda n: True, get_collection=lambda n: cfg),
+        lambda: SimpleNamespace(
+            collection_exists=lambda n: True,
+            get_collection=lambda n: cfg,
+            create_payload_index=lambda **kwargs: None,
+        ),
     )
     vector_store.ensure_collection("grifo", 384)  # nao levanta
+
+
+def test_ingestao_cria_o_indice_do_campo_filtrado(monkeypatch):
+    """O Qdrant Cloud recusa filtrar campo sem índice, com 400 na PRIMEIRA consulta:
+    a ingestão termina limpa e o erro aparece longe dali. O local aceita, então isto
+    só aparecia em produção."""
+    from grifo.retrieval import vector_store
+
+    criados = []
+    monkeypatch.setattr(
+        vector_store,
+        "_client",
+        lambda: SimpleNamespace(
+            collection_exists=lambda n: False,
+            create_collection=lambda **kwargs: None,
+            create_payload_index=lambda **kwargs: criados.append(kwargs["field_name"]),
+        ),
+    )
+    vector_store.ensure_collection("grifo", 1536)
+    assert criados == [vector_store.CAMPO_FILTRADO]
+
+
+def test_colecao_que_ja_existe_tambem_ganha_o_indice(monkeypatch):
+    """Coleção criada antes desta correção continua sem índice: a ingestão seguinte
+    conserta, em vez de exigir recriar tudo."""
+    from grifo.retrieval import vector_store
+
+    criados = []
+    cfg = SimpleNamespace(
+        config=SimpleNamespace(params=SimpleNamespace(vectors=SimpleNamespace(size=1536)))
+    )
+    monkeypatch.setattr(
+        vector_store,
+        "_client",
+        lambda: SimpleNamespace(
+            collection_exists=lambda n: True,
+            get_collection=lambda n: cfg,
+            create_payload_index=lambda **kwargs: criados.append(kwargs["field_name"]),
+        ),
+    )
+    vector_store.ensure_collection("grifo", 1536)
+    assert criados == [vector_store.CAMPO_FILTRADO]
 
 
 def test_point_id_nao_depende_do_nome_da_colecao():

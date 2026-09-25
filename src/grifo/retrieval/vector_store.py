@@ -107,6 +107,28 @@ def _qdrant_filter(filters: dict | None) -> models.Filter | None:
     return models.Filter(must=must) if must else None
 
 
+#: Campo pelo qual TODA consulta filtra (`chain._retrieve_state` sempre passa
+#: `{"curso": ...}`).
+CAMPO_FILTRADO = "metadata.curso"
+
+
+def _indexar_o_filtro(name: str) -> None:
+    """Cria o índice de payload do campo que a busca filtra.
+
+    O Qdrant local aceita filtrar campo sem índice; o Qdrant Cloud recusa com
+    `400 Bad request: Index required but not found for "metadata.curso"`. O erro só
+    aparece na primeira consulta, depois de a ingestão ter terminado limpa -- e a
+    ingestão é o único lugar que sabe que este campo existe. Idempotente: recriar um
+    índice que já existe não é erro.
+    """
+    _client().create_payload_index(
+        collection_name=name,
+        field_name=CAMPO_FILTRADO,
+        field_schema=models.PayloadSchemaType.KEYWORD,
+        wait=True,
+    )
+
+
 def ensure_collection(name: str, dim: int) -> None:
     """Cria a colecao se nao existir; se existir, exige que a dimensao bata.
 
@@ -119,7 +141,9 @@ def ensure_collection(name: str, dim: int) -> None:
             collection_name=name,
             vectors_config=models.VectorParams(size=dim, distance=models.Distance.COSINE),
         )
+        _indexar_o_filtro(name)
         return
+    _indexar_o_filtro(name)
     atual = _client().get_collection(name).config.params.vectors
     atual_dim = getattr(atual, "size", None)
     if atual_dim is not None and atual_dim != dim:
