@@ -20,11 +20,13 @@ ficou em 559MB, medido no build. A troca muda o retrieval, então ela foi medida
 ## 1. Índice no Qdrant Cloud
 
 1. Crie um cluster gratuito em <https://cloud.qdrant.io> e guarde a URL e a chave.
+   A URL do painel funciona como está: o Cloud atende em 443, e a porta `:6333`
+   é opcional (testado nas duas formas). A chave aparece uma vez só.
 2. Indexe o corpus a partir da sua máquina (a ingestão fala com o cluster remoto):
 
 ```bash
 python scripts/baixar_aulas.py --transcrever     # reconstrói as transcrições
-QDRANT_URL=https://SEU-CLUSTER.qdrant.io:6333 \
+QDRANT_URL=https://SEU-ID.REGIAO.aws.cloud.qdrant.io \
 QDRANT_API_KEY=... \
 QDRANT_COLLECTION=grifo_aulas_publicas \
 EMBEDDING_PROVIDER=openai \
@@ -33,8 +35,14 @@ OPENAI_API_KEY=... OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
 python -m grifo.ingest corpus/aulas-publicas --curso "G4 Business (aulas públicas)"
 ```
 
-A ingestão confere os vetores gravados e falha alto se algum sair zerado. Vale conferir
-uma vez também pelo painel do Qdrant: coleção com 332 pontos e dimensão 1536.
+A ingestão confere os vetores gravados e falha alto se algum sair zerado, e cria o
+índice de payload do campo que a busca filtra. Vale conferir uma vez pelo painel do
+Qdrant: coleção com 332 pontos, dimensão 1536 e um índice em `metadata.curso`.
+
+**Por que o índice importa.** O Qdrant local aceita filtrar um campo sem índice; o
+Qdrant Cloud recusa com `400 Bad request: Index required but not found for
+"metadata.curso"`. O erro só aparece na primeira consulta, com a ingestão já terminada
+limpa. Coleção criada antes dessa correção se conserta rodando a ingestão de novo.
 
 ## 2. API no Hugging Face Spaces
 
@@ -83,11 +91,13 @@ mantém acordado.
 
 ## Uma armadilha do Windows que custa meia hora
 
-Passar a chave para o container lendo o `.env` com `grep | cut` leva junto o `` do
+Passar a chave para o container lendo o `.env` com `grep | cut` leva junto o `
+` do
 CRLF. O cabeçalho `Authorization` fica inválido, e o SDK da OpenAI embrulha a falha de
 transporte como `APIConnectionError: Connection error` — que parece falta de internet
 e não é. Aconteceu aqui: DNS e HTTPS funcionavam de dentro do container, e mesmo assim
-toda chamada de embedding falhava. Use `tr -d ''` ao extrair, ou defina a variável
+toda chamada de embedding falhava. Use `tr -d '
+'` ao extrair, ou defina a variável
 direto no painel do serviço, que é o caminho normal em produção.
 
 ## O risco que vale mais atenção que o deploy
