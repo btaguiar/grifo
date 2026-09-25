@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowUp, Info, TriangleAlert } from "lucide-react"
+import { ArrowUp, Info, Lightbulb, TriangleAlert } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { Fontes } from "@/components/fontes"
@@ -26,6 +26,10 @@ export function Conversa() {
   const [texto, setTexto] = useState("")
   const [turnos, setTurnos] = useState<Turno[]>([])
   const [carregando, setCarregando] = useState(false)
+  // Os chips ocupavam quatro linhas DENTRO do bloco fixo, e o espaco reservado
+  // para ele virava um vao enorme entre a ultima resposta e o campo. Depois da
+  // primeira pergunta eles viram um botao: quem quiser mais ideias abre.
+  const [sugestoesAbertas, setSugestoesAbertas] = useState(false)
   // `useId` em vez de Math.random(): identificador estável e sem efeito colateral
   // no render, que é o que a regra de pureza do React exige.
   const sessao = useId()
@@ -83,9 +87,13 @@ export function Conversa() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* o `pb-44` reserva a altura do campo fixo, para o ultimo turno rolar inteiro */}
+      {/* Sem reservar a altura do campo aqui: a pagina CONTINUA depois do chat (a secao
+          das aulas), entao ja existe rolagem de sobra para o ultimo turno sair de tras
+          do campo fixo. Reservar de novo abria um vao morto no meio da tela. Quem
+          garante que o scroll automatico nao para escondido e o `scrollMarginBottom`
+          do elemento abaixo. */}
       {!vazia && (
-        <div className="flex flex-col gap-8" style={{ paddingBottom: alturaDoCampo }}>
+        <div className="flex flex-col gap-8 pb-6">
           {turnos.map((turno) => (
             <Turno key={turno.id} turno={turno} semMovimento={semMovimento} />
           ))}
@@ -125,19 +133,36 @@ export function Conversa() {
           </PromptInputActions>
         </PromptInput>
 
-        <div className="flex flex-wrap gap-2">
-          {SUGESTOES.map((sugestao) => (
-            <PromptSuggestion
-              key={sugestao}
-              size="sm"
-              className="h-auto rounded-full px-3.5 py-1.5 text-sm font-normal whitespace-normal text-left active:translate-y-px"
-              onClick={() => enviar(sugestao)}
-              disabled={carregando}
-            >
-              {sugestao}
-            </PromptSuggestion>
-          ))}
-        </div>
+        {(vazia || sugestoesAbertas) && (
+          <div className="flex flex-wrap gap-2">
+            {SUGESTOES.map((sugestao) => (
+              <PromptSuggestion
+                key={sugestao}
+                size="sm"
+                className="h-auto rounded-full px-3.5 py-1.5 text-sm font-normal whitespace-normal text-left active:translate-y-px"
+                onClick={() => {
+                  setSugestoesAbertas(false)
+                  enviar(sugestao)
+                }}
+                disabled={carregando}
+              >
+                {sugestao}
+              </PromptSuggestion>
+            ))}
+          </div>
+        )}
+
+        {!vazia && (
+          <button
+            type="button"
+            onClick={() => setSugestoesAbertas((aberto) => !aberto)}
+            className="flex items-center gap-1.5 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
+            aria-expanded={sugestoesAbertas}
+          >
+            <Lightbulb aria-hidden className="size-4" strokeWidth={2} />
+            {sugestoesAbertas ? "Esconder sugestões" : "Ver perguntas sugeridas"}
+          </button>
+        )}
 
         {vazia && (
           <p className="text-sm text-muted-foreground">
