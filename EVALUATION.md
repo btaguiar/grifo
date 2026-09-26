@@ -191,7 +191,8 @@ A ressalva que impede declarar o NFR-1 cumprido: este corpus tem 22 chunks contr
 do real, e o prompt correspondente é 601 tokens contra 1.374. A medição remota anterior
 sobre o corpus real deu 6,6s. Então o que está provado é que **a meta é alcançável com
 provedor remoto**, não que ela seja cumprida no corpus real — para isso falta uma rodada
-remota sobre ele, que hoje esbarra no GOV-1.
+remota sobre ele. Ela esbarrava no GOV-1, que voltou autorizado em setembro de 2026:
+a rodada deixou de estar bloqueada e passou a estar apenas por fazer.
 
 **Faithfulness em 0.81 é o número mais útil desta tabela**, justamente por não atingir a
 meta. Ele mede o quanto a resposta se sustenta nos trechos recuperados, e é a primeira
@@ -1039,8 +1040,10 @@ um conjunto em que tudo passa não mede nada.
 
 Com `EMBEDDING_PROVIDER=local` e o LLM no LM Studio, o pipeline inteiro roda offline:
 custo zero e **nenhum trecho do material sai da máquina**. Foi isso que permitiu medir
-esta linha de base contra o corpus real com o GOV-1 ainda pendente — a autorização volta
-a ser necessária para publicar ou para usar provedor remoto.
+esta linha de base contra o corpus real enquanto o GOV-1 ainda estava pendente. A
+autorização voltou concedida em setembro de 2026 e o provedor remoto deixou de estar
+bloqueado — mas os números acima continuam sendo os que foram medidos, com LLM local.
+Uma rodada remota sobre o corpus real seria outra medição, e entraria como tal.
 
 Se migrar para API paga, os números acima dão a conta: 1.374 tokens de entrada por
 pergunta, 1,24M para reindexar o corpus. Confirme os preços vigentes antes de orçar.
@@ -1110,7 +1113,10 @@ página valha mais do que a medição que a sustenta.
 - **O kappa do juiz existe, mas 91 dos 97 rótulos são de construção, não de leitura.**
   O juiz da série (`gpt-4o`) tem κ = 0.905 sobre 97 casos (ver 5.9), o que sustenta a
   taxa 0.00 das rodadas que ele julgou; o `qwen2.5-7b` fica em 0.408, e a linha de
-  alucinação da 3.1 segue não sustentada. A ressalva é a procedência: só 6 rótulos
+  alucinação da 3.1 segue não sustentada. Re-julgá-la com o `gpt-4o` significa mandar
+  trechos do corpus real a um provedor externo, o que o GOV-1 bloqueava; a autorização
+  voltou concedida em setembro de 2026, então a rodada deixou de depender de terceiros
+  e passou a ser trabalho por fazer. A ressalva é a procedência: só 6 rótulos
   vieram de alguém lendo o caso, e os outros 91 foram confirmados por verificação
   **lexical** da construção — que não alcança fabricação feita só com palavras do
   contexto. O κ da fatia `construcao` mede acordo com uma regra mecânica; ampliar a

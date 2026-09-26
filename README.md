@@ -209,7 +209,10 @@ Declaradas para não serem lidas como promessas; detalhes no [EVALUATION.md §7]
   erro de um LLM ([5.9](EVALUATION.md)).
 - **A alucinação da linha de base do corpus real não está sustentada.** Aquela rodada foi
   julgada pelo próprio `qwen2.5-7b` que respondia (κ = 0.408, recall 0.364) — o restante
-  do que ela mediu segue válido, a linha de alucinação não.
+  do que ela mediu segue válido, a linha de alucinação não. Re-medir com o juiz `gpt-4o`
+  exigia mandar trechos do material a um provedor externo, o que dependia da autorização
+  da escola (GOV-1). Ela voltou concedida em setembro de 2026: a rodada saiu de
+  *bloqueada* para *por fazer*.
 - **p95 acima da meta, e isso foi aceito** — 3,5s no corpus de exemplo e 5,1s no de
   vídeo, contra teto de 3s. É o custo do structured output, medido e publicado desde
   a Fase 2: citação validada vale mais que dois segundos num assistente que se

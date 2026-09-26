@@ -50,5 +50,6 @@ desatualizado**, não bloqueio real — foi o que aconteceu em 2026-09-24.
 Vídeos abertos, no canal de quem produziu o material, e a citação devolve o aluno para
 o vídeo original no minuto exato. O direito autoral continua de quem publicou; este
 repositório guarda apenas links e métricas derivadas. A autorização formal de uso
-(GOV-1, [docs/autorizacao-material.md](../../docs/autorizacao-material.md)) segue seu
-curso em paralelo e vale para o corpus privado.
+(GOV-1, [docs/autorizacao-material.md](../../docs/autorizacao-material.md)) voltou
+concedida em setembro de 2026 e diz respeito ao corpus privado; este corpus público
+nunca dependeu dela, e é por isso que ele existe.
