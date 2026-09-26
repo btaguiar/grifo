@@ -4,7 +4,9 @@ O histórico deste repositório começa num commit único. O projeto nasceu com 
 um que identificava a escola cujo material serviu de corpus real — e esse nome estava no
 título do README, no pacote e espalhado por todos os commits anteriores. Publicá-los
 significaria publicar a origem do material antes de a autorização de uso (GOV-1 na
-[SPEC](SPEC.md)) ter voltado. O histórico foi refeito; o que ele contava fica aqui.
+[SPEC](SPEC.md)) ter voltado. O histórico foi refeito; o que ele contava fica aqui. A autorização voltou concedida em
+setembro de 2026, nos três pedidos — o histórico reescrito fica como está, porque
+desfazê-lo não devolveria nada que este arquivo já não conte.
 
 Não é changelog de releases. É a ordem em que as coisas foram descobertas, que num
 projeto de RAG é a parte que ensina.
@@ -334,6 +336,15 @@ trava que realmente protege é o limite de crédito na conta do provedor, porque
 depende de o código estar certo.
 
 ## Setembro de 2026 — no ar
+
+**O GOV-1 voltou, e voltou inteiro.** A autorização de uso do material — pedida em três
+níveis, do uso local à menção pública — foi concedida nos três. O que ela muda de
+concreto é uma coisa só, e é a que faltava: a alucinação da linha de base do corpus real
+nunca se sustentou porque o `qwen2.5-7b` julgou as próprias respostas (κ = 0.408), e o
+juiz que presta (`gpt-4o`, κ = 0.905) não podia ver esse corpus, porque ver significa
+sair da máquina. Agora pode. O que não muda: o conteúdo continua fora do repositório,
+porque publicá-lo nunca esteve no pedido. Registro em
+[docs/autorizacao-material.md](docs/autorizacao-material.md).
 
 **A demo saiu da máquina.** Front na Vercel, API no Cloud Run em São Paulo, índice no
 Qdrant Cloud na mesma região. O passo a passo está em [docs/deploy.md](docs/deploy.md);

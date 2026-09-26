@@ -237,13 +237,23 @@ As duas em negrito são o diferencial do projeto. `python eval/run_eval.py` roda
 
 | ID | Requisito | Status |
 |---|---|---|
-| GOV-1 | Autorização por escrito da escola para (a) processar material em projeto pessoal, (b) enviar trechos para a API da OpenAI — serviço externo, o conteúdo sai da infra da empresa, (c) publicar o código e falar publicamente | pendente |
+| GOV-1 | Autorização por escrito da escola para (a) processar material em projeto pessoal, (b) enviar trechos para a API da OpenAI — serviço externo, o conteúdo sai da infra da empresa, (c) publicar o código e falar publicamente | feito (2026-09) — (a), (b) e (c) autorizados |
 | GOV-2 | `.gitignore` commitado antes de qualquer arquivo em `data/` | feito |
 | GOV-3 | Corpus real apenas em `data/raw/`, local; corpus aberto em `samples/`, commitado | feito |
 | GOV-4 | Anonimização de PII na ingestão, documentada no README | feito |
 | GOV-5 | Auditoria do histórico git antes de tornar o repo público | feito (2026-09-02) — ver abaixo |
 
-**GOV-1 bloqueia o uso do corpus real, não o código.** Decidir na semana 1. Se a autorização não vier: trocar o corpus por material aberto (MIT OpenCourseWare, documentação técnica, curso fictício) e manter a narrativa em "o problema que eu via operando cursos online".
+**GOV-1 bloqueava o uso do corpus real, não o código** — e voltou autorizado nos três
+pedidos em setembro de 2026. O plano B (trocar por material aberto e manter a narrativa
+em "o problema que eu via operando cursos online") não precisou ser executado, e o
+corpus público em vídeo, construído enquanto a resposta não vinha, ficou como o corpus
+reproduzível do projeto.
+
+**Autorizado não é feito.** A autorização remove restrições; não executa nada. O que ela
+destrava e o que continua valendo está em
+[docs/autorizacao-material.md](docs/autorizacao-material.md). Em particular: o conteúdo
+do material **continua fora do repositório**, porque publicar o conteúdo nunca foi
+pedido nem concedido.
 
 **Resultado da auditoria GOV-5 (2026-09-02).** Nenhum segredo em nenhum commit, e o
 material do curso nunca entrou no índice — GOV-2 se sustenta. Foram encontrados e
