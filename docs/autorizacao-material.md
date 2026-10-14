@@ -1,7 +1,17 @@
 # GOV-1 — Pedido de autorização de uso do material
 
-Bloqueia o uso do corpus real, **não** o código (SPEC seção 9). E-mail basta; guarde a
-resposta.
+> **Resolvido em setembro de 2026: os três pedidos foram autorizados** — (a) uso local,
+> (b) envio de trechos a provedor externo e (c) menção pública. O registro está no fim
+> deste arquivo. O texto do pedido fica preservado abaixo como o que foi efetivamente
+> enviado, no tempo verbal em que foi escrito.
+>
+> **Autorizado não é feito, e não é tudo.** Publicar o *conteúdo* do material nunca foi
+> pedido nem concedido: ele continua fora do repositório, e continua sendo o `.gitignore`
+> que garante isso. O repositório também segue sem nomear a escola — o (c) permite
+> nomear, não obriga, e essa é uma escolha editorial separada.
+
+Bloqueava o uso do corpus real, **não** o código (SPEC seção 9). E-mail bastou; a
+resposta está guardada fora do repositório.
 
 **Este arquivo é versionado no repositório público.** Por isso ele não nomeia a escola
 nem os mentores: os campos entre colchetes são preenchidos na hora de enviar, fora daqui.
@@ -84,21 +94,38 @@ Bruno Aguiar
 
 | Campo | Valor |
 |---|---|
-| Enviado em | — |
-| Para | — |
-| Resposta em | — |
-| Resultado (a) uso local | ⬜ autorizado · ⬜ negado |
-| Resultado (b) provedor externo | ⬜ autorizado · ⬜ negado |
-| Resultado (c) menção pública | ⬜ autorizado · ⬜ negado |
-| Onde a resposta está guardada | — |
+| Enviado em | *(preencher: data de envio)* |
+| Para | contato responsável na escola — não nomeado aqui, ver nota abaixo |
+| Resposta em | *(preencher: data da resposta)* |
+| Resultado (a) uso local | ✅ **autorizado** |
+| Resultado (b) provedor externo | ✅ **autorizado** |
+| Resultado (c) menção pública | ✅ **autorizado** |
+| Onde a resposta está guardada | *(preencher: onde o e-mail de resposta está arquivado — fora do repositório)* |
 
-**Se (a) for negado ou não houver resposta:** apagar a coleção e `data/raw/`, e manter o
-projeto sobre `samples/`, que é o que a demo e o CI já usam. A narrativa do portfolio não
-depende do corpus real: ela é "o problema que eu via operando cursos online". O que se
-perde são os números medidos sobre material de verdade, e a seção 3.1 do EVALUATION
-passaria a ser histórica, não reproduzível.
+Registrado em 2026-09-25. Os três campos entre parênteses dependem do e-mail em si e
+ficam para quem tem a caixa de entrada aberta; os resultados, que são o que os outros
+documentos citam, estão fechados.
 
-**Enquanto não houver resposta:** vale o que está escrito no pedido. Nada de provedor
-remoto com o corpus real, nada de mencionar a escola. As duas restrições estão
-implementadas, não só combinadas: o `.env` aponta para modelo local, e a auditoria GOV-5
-tirou os nomes do repositório.
+**Por que "Para" continua genérico.** O (c) autoriza nomear a escola, e nomear passou a
+ser uma escolha, não um risco. Enquanto essa escolha não for feita, este arquivo — que é
+público — mantém o padrão dos outros: a origem do material não aparece. Trocar isso é
+uma edição de um campo, no dia em que fizer sentido.
+
+### O que a resposta mudou, e o que não mudou
+
+**Mudou.** A rodada remota sobre o corpus real deixou de estar bloqueada. É a medição que
+falta para fechar a lacuna declarada no EVALUATION: a alucinação do corpus real hoje não
+se sustenta porque um 7B julgou a si mesmo, e o juiz forte (`gpt-4o`, κ = 0.905) só rodou
+sobre corpus público. Com o (b) autorizado, o mesmo juiz pode julgar o corpus real. É
+trabalho por fazer, não feito.
+
+**Não mudou.** O conteúdo do material não vai para o repositório — isso não estava no
+pedido. `data/raw/` e a coleção do corpus real continuam locais, o `.gitignore` continua
+sendo a garantia, e `samples/` mais o corpus público em vídeo continuam sendo o que a
+demo e o CI usam. A narrativa do portfolio também não muda: ela sempre foi "o problema
+que eu via operando cursos online", e é isso que a torna independente de qualquer
+autorização.
+
+**O plano B, para registro.** Se (a) tivesse sido negado, o combinado era apagar a coleção
+e `data/raw/` e seguir sobre `samples/`, com a seção 3.1 do EVALUATION passando a
+histórica e não reproduzível. Não foi preciso.
