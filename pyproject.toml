@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84.1.0"]   # >=68 carregava 7 avisos de seguranca; corrigidos ate 84.1.0
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -22,7 +22,7 @@ dependencies = [
     "qdrant-client>=1.12,<1.13",   # casado com a imagem do compose (ver docker-compose.yml)
     "rank-bm25>=0.2.2,<0.3",
     # Ingestão
-    "pypdf>=6.16.1,<7",   # <6 travava ~24 avisos de seguranca; PDF e entrada nao confiavel
+    "pypdf>=6.21.4,<7",   # 6.16.x acumulava ~26 avisos de seguranca (corrigidos ate 6.21.4); PDF e entrada nao confiavel
     "webvtt-py>=0.5,<0.6",
     # API e UI
     "fastapi>=0.141,<0.142",
